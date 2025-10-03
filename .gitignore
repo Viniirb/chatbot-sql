@@ -1,0 +1,21 @@
+# Arquivos do sistema e vscode
+.vscode/
+.DS_Store
+thumbs.db
+*.log
+
+# Backend
+backend/venv/
+backend/.env
+backend/__pycache__/
+*.pyc
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/npm-debug.log*
+frontend/yarn-debug.log*
+frontend/yarn-error.log*
+frontend/.env
+frontend/.env.local
+frontend/.env.*.local
