@@ -3,6 +3,7 @@ import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { a11yDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import type { Message } from '../../types';
 import { Bot, User } from 'lucide-react';
+import { motion } from 'framer-motion';
 
 interface Props {
   message: Message;
@@ -10,24 +11,29 @@ interface Props {
 
 export const MessageBubble = ({ message }: Props) => {
   return (
-    <div
-      className={`flex items-start space-x-3 max-w-2xl animate-fade-in ${
+    <motion.div
+      layout
+      initial={{ opacity: 0, scale: 0.9, y: 10 }}
+      animate={{ opacity: 1, scale: 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.9, y: 10 }}
+      transition={{ duration: 0.3 }}
+      className={`flex items-start space-x-4 ${
         message.sender === 'user' ? 'ml-auto flex-row-reverse space-x-reverse' : ''
       }`}
     >
       <div
         className={`flex-shrink-0 flex items-center justify-center h-10 w-10 rounded-full ${
-          message.sender === 'user' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-400'
+          message.sender === 'user' ? 'bg-primary text-white' : 'bg-gray-700 text-gray-400'
         }`}
       >
         {message.sender === 'user' ? <User size={20} /> : <Bot size={20} />}
       </div>
 
       <div
-        className={`px-4 py-2 rounded-lg shadow-md ${
+        className={`px-4 py-2 rounded-lg max-w-2xl prose prose-invert prose-p:my-2 prose-headings:my-3 ${
           message.sender === 'user'
-            ? 'bg-blue-600 text-white'
-            : 'bg-white text-gray-800 dark:bg-gray-700 dark:text-gray-200'
+            ? 'bg-bubble-user text-white'
+            : 'bg-gray-700 text-gray-200'
         }`}
       >
         <ReactMarkdown
@@ -57,6 +63,6 @@ export const MessageBubble = ({ message }: Props) => {
           {message.text}
         </ReactMarkdown>
       </div>
-    </div>
+    </motion.div>
   );
 };
