@@ -1,0 +1,28 @@
+# Core framework
+fastapi==0.118.0
+uvicorn==0.37.0
+python-dotenv==1.1.1
+python-multipart==0.0.20
+
+# Database
+SQLAlchemy==2.0.43
+pyodbc==5.2.0
+pandas==2.3.3
+
+# LlamaIndex and AI
+llama-index-core==0.14.4
+llama-index-llms-gemini==0.5.0
+llama-index-embeddings-google-genai==0.3.1
+
+# Google AI
+google-generativeai==0.8.5
+google-api-core==2.25.2
+
+# Export functionality
+fpdf==1.7.2
+openpyxl==3.1.5
+
+# HTTP and async
+httpx==0.28.1
+aiohttp==3.13.0
+asyncio
