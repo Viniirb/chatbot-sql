@@ -466,7 +466,7 @@ Este projeto está licenciado sob a Licença MIT - veja o arquivo [LICENSE](LICE
 ---
 
 <div align="center">
-  <img src="https://readme-typing-svg.herokuapp.com?font=Orbitron&size=20&duration=3000&pause=1000&color=4F46E5&center=true&vCenter=true&width=600&lines=Transformando+dados+em+insights;Construído+com+💜+por+N-Tecnologias;Obrigado+por+usar+nosso+projeto!" alt="Footer Typing SVG" />
+  <img src="https://readme-typing-svg.herokuapp.com?font=Orbitron&size=20&duration=3000&pause=1000&color=4F46E5&center=true&vCenter=true&width=600&lines=Transformando+dados+em+insights;Construído+com+💜+por+Vinicius+Rolim+Barbosa;Obrigado+por+usar+nosso+projeto!" alt="Footer Typing SVG" />
 </div>
 
 **⭐ Se este projeto foi útil, deixe uma estrela!**
