@@ -1,12 +1,13 @@
-import { useState, useEffect, useRef } from 'react';
-import { MessageBubble } from './components/MessageBubble/MessageBubble';
-import { useChat } from './hooks/useChat';
+import { useState, useEffect, useRef, Suspense, lazy } from 'react';
+import { useChat } from './presentation/hooks/use-chat';
 import { Bot, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
-import { Sidebar } from './components/Sidebar/Sidebar';
 import { AnimatePresence } from 'framer-motion';
-import { Header } from './components/Header/Header';
-import { Footer } from './components/Footer/Footer';
 import { Toaster } from 'react-hot-toast';
+
+const MessageBubble = lazy(() => import('./components/MessageBubble/MessageBubble').then(module => ({ default: module.MessageBubble })));
+const Sidebar = lazy(() => import('./components/Sidebar/Sidebar').then(module => ({ default: module.Sidebar })));
+const Header = lazy(() => import('./components/Header/Header').then(module => ({ default: module.Header })));
+const Footer = lazy(() => import('./components/Footer/Footer').then(module => ({ default: module.Footer })));
 
 export default function App() {
   const [isSidebarOpen, setSidebarOpen] = useState(true);
@@ -18,10 +19,22 @@ export default function App() {
     createNewSession, 
     switchSession, 
     deleteSession,
-    togglePinSession,
-    renameSession,
-    abortRequest 
+    updateSession,
+    retryMessage,
+    abortMessage,
+    getActiveSessionStats
   } = useChat();
+
+  const togglePinSession = (sessionId: string) => {
+    const session = sessions.find(s => s.id === sessionId);
+    if (session) {
+      updateSession(sessionId, { isPinned: !session.isPinned });
+    }
+  };
+
+  const renameSession = (sessionId: string, newTitle: string) => {
+    updateSession(sessionId, { title: newTitle });
+  };
   const chatBoxRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -32,8 +45,9 @@ export default function App() {
   return (
     <div className="flex h-screen bg-black font-sans text-gray-200 overflow-hidden">
       <Toaster 
-        position="bottom-right"
+        position="top-right"
         toastOptions={{
+          className: 'toast-slide-in',
           style: {
             background: '#27272a',
             color: '#e4e4e7',
@@ -41,16 +55,19 @@ export default function App() {
           },
         }}
       />
-      <Sidebar 
-        isOpen={isSidebarOpen}
-        sessions={sessions} 
-        activeSessionId={activeSession?.id || null} 
-        onNewChat={createNewSession} 
-        onSwitchChat={switchSession}
-        onDeleteChat={deleteSession}
-        onTogglePin={togglePinSession}
-        onRenameChat={renameSession}
-      />
+      <Suspense fallback={<div className="w-64 bg-gray-900 border-r border-gray-800 animate-pulse" />}>
+        <Sidebar 
+          isOpen={isSidebarOpen}
+          sessions={sessions} 
+          activeSessionId={activeSession?.id || null} 
+          onNewChat={createNewSession} 
+          onSwitchChat={switchSession}
+          onDeleteChat={deleteSession}
+          onTogglePin={togglePinSession}
+          onRenameChat={renameSession}
+          onGetSessionStats={getActiveSessionStats}
+        />
+      </Suspense>
       <div className="flex flex-col flex-1 relative bg-gray-900/30">
         <button 
           onClick={() => setSidebarOpen(!isSidebarOpen)} 
@@ -59,13 +76,17 @@ export default function App() {
           {isSidebarOpen ? <PanelLeftClose size={16}/> : <PanelLeftOpen size={16}/>}
         </button>
         
-        <Header />
+        <Suspense fallback={<div className="p-4 border-b border-gray-800 h-20 animate-pulse" />}>
+          <Header />
+        </Suspense>
 
         <main className="flex-1 overflow-y-auto w-full max-w-4xl mx-auto custom-scroll">
           <div className="p-4 space-y-6" ref={chatBoxRef}>
             <AnimatePresence>
               {activeSession?.messages.map((msg, index) => (
-                <MessageBubble key={`${activeSession.id}-${index}`} message={msg} />
+                <Suspense key={`${activeSession.id}-${index}`} fallback={<div className="h-16 animate-pulse bg-gray-800 rounded-lg" />}>
+                  <MessageBubble message={msg} onRetry={retryMessage} />
+                </Suspense>
               ))}
             </AnimatePresence>
             {loading && (
@@ -84,11 +105,13 @@ export default function App() {
           </div>
         </main>
 
-        <Footer 
-            onSendMessage={sendMessage} 
-            isLoading={loading} 
-            onStop={abortRequest} 
-        />
+        <Suspense fallback={<div className="h-32 bg-gray-900 border-t border-gray-800 animate-pulse" />}>
+          <Footer 
+              onSendMessage={sendMessage} 
+              isLoading={loading} 
+              onStop={abortMessage} 
+          />
+        </Suspense>
       </div>
     </div>
   );

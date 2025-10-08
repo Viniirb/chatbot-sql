@@ -1,40 +1,29 @@
 import { useState, useCallback, useRef, useEffect } from 'react'; 
 import { useDropzone } from 'react-dropzone';
 import type { FileRejection } from 'react-dropzone';
-import { SendHorizontal, Square, Plus, Code, Image, X, Pencil, Trash2, FileCode2, FileText, File } from 'lucide-react';
-import { DiJavascript1, DiPython, DiJava, DiCss3, DiHtml5, DiReact, DiGo, DiRuby, DiPhp } from "react-icons/di";
-import { SiTypescript, SiSharp, SiKotlin, SiSwift } from "react-icons/si";
-import { FaFileWord, FaFileExcel, FaFilePdf, FaFilePowerpoint } from 'react-icons/fa';
-import { FaFileZipper } from 'react-icons/fa6';
+import { SendHorizontal, Square, FileCode2, FileText, File } from 'lucide-react';
 import ContentEditable from 'react-contenteditable';
-import { Dialog, Transition, Menu, MenuButton, MenuItems, MenuItem } from '@headlessui/react';
-import { Fragment } from 'react';
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
-import { motion, AnimatePresence } from 'framer-motion';
-import type { CodeSnippet } from '../../types';
-import { FileBadge } from '../FileBadge/FileBadge';
+import type { CodeSnippet } from '../../core/domain/entities';
 import hljs from 'highlight.js';
 import toast from 'react-hot-toast';
+import { CodeModal } from './CodeModal';
+import { AttachmentMenu } from './AttachmentMenu';
+import { AttachmentPreview } from './AttachmentPreview';
 
-// ... (o restante das suas interfaces e constantes permanece o mesmo) ...
+import { DiJavascript1, DiPython, DiJava, DiCss3, DiHtml5, DiReact, DiGo, DiRuby, DiPhp } from "react-icons/di";
+import { SiTypescript, SiSharp, SiKotlin, SiSwift } from "react-icons/si";
+import { FaFileWord, FaFileExcel, FaFilePdf, FaFilePowerpoint, FaFileArchive } from 'react-icons/fa';
+
 interface FilePreview extends File {
   preview: string;
   id: string;
 }
 
 interface Props {
-  onSendMessage: (text: string, files: File[]) => void;
+  onSendMessage: (text: string, files: File[]) => Promise<void>;
   isLoading: boolean;
   onStop?: () => void;
 }
-
-const languageIcons: { [key: string]: React.ElementType } = {
-  javascript: DiJavascript1, typescript: SiTypescript, python: DiPython,
-  java: DiJava, csharp: SiSharp, html: DiHtml5, css: DiCss3,
-  jsx: DiReact, tsx: DiReact, go: DiGo, ruby: DiRuby, php: DiPhp,
-  kotlin: SiKotlin, swift: SiSwift, sql: FileCode2,
-};
 
 const fileExtensionIcons: { [key: string]: React.ElementType } = {
   pdf: FaFilePdf,
@@ -45,7 +34,6 @@ const fileExtensionIcons: { [key: string]: React.ElementType } = {
   ppt: FaFilePowerpoint,
   pptx: FaFilePowerpoint,
   txt: FileText,
-  csv: FaFileExcel,
   
   js: DiJavascript1,
   jsx: DiReact,
@@ -61,32 +49,16 @@ const fileExtensionIcons: { [key: string]: React.ElementType } = {
   php: DiPhp,
   kt: SiKotlin,
   swift: SiSwift,
-  sql: FileCode2,
+  csv: FaFileExcel,
   
-  // Arquivos compactados
-  zip: FaFileZipper,
-  rar: FaFileZipper,
-  '7z': FaFileZipper,
-  tar: FaFileZipper,
-  gz: FaFileZipper,
+  zip: FaFileArchive,
+  rar: FaFileArchive,
+  '7z': FaFileArchive,
+  tar: FaFileArchive,
+  gz: FaFileArchive,
   
-  // JSON
   json: FileCode2,
 };
-
-const SUPPORTED_LANGUAGES = [
-  { value: 'plaintext', label: 'Texto Simples' }, 
-  { value: 'javascript', label: 'JavaScript' },
-  { value: 'typescript', label: 'TypeScript' }, 
-  { value: 'python', label: 'Python' },
-  { value: 'java', label: 'Java' }, 
-  { value: 'csharp', label: 'C#' }, 
-  { value: 'sql', label: 'SQL' },
-  { value: 'html', label: 'HTML' },
-  { value: 'css', label: 'CSS' },
-  { value: 'jsx', label: 'JSX' },
-  { value: 'go', label: 'Go' },
-];
 
 
 export const ChatInput = ({ onSendMessage, isLoading, onStop }: Props) => {
@@ -100,15 +72,12 @@ export const ChatInput = ({ onSendMessage, isLoading, onStop }: Props) => {
   const editableRef = useRef<HTMLDivElement | null>(null);
   const formRef = useRef<HTMLFormElement | null>(null);
 
-  // 2. ADICIONAR ESTE useEffect
-  // Garante que o input role para baixo conforme o conteúdo aumenta
   useEffect(() => {
     if (editableRef.current) {
       editableRef.current.scrollTop = editableRef.current.scrollHeight;
     }
-  }, [html]); // Roda sempre que o conteúdo 'html' mudar
+  }, [html]);
 
-  // ... (o restante das suas funções permanece o mesmo) ...
   const addCodeSnippet = (content: string, language: string) => {
     const newSnippet: CodeSnippet = { id: Math.random().toString(36).substring(2, 9), content, language };
     setCodeSnippets(prev => [...prev, newSnippet]);
@@ -170,11 +139,8 @@ export const ChatInput = ({ onSendMessage, isLoading, onStop }: Props) => {
         addCodeSnippet(textContent, autoDetection.language);
         return;
       }
-      // PASTE COMO TEXTO PURO (sem estilos)
       e.preventDefault();
-      // execCommand ainda é amplamente suportado para inserir texto simples
       document.execCommand('insertText', false, textContent);
-      // Sincroniza o estado 'html' com o conteúdo atual do ContentEditable
       setTimeout(() => {
         if (editableRef.current) {
           setHtml(editableRef.current.innerHTML);
@@ -202,18 +168,28 @@ export const ChatInput = ({ onSendMessage, isLoading, onStop }: Props) => {
     setCodeSnippets(prev => prev.filter(s => s.id !== snippetIdToRemove));
   };
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (isLoading) return;
+    
     const currentText = editableRef.current?.innerText || '';
     const formattedCodeSnippets = codeSnippets.map(snippet => `\n\`\`\`${snippet.language}\n${snippet.content}\n\`\`\``).join('');
     const finalText = (currentText.trim() + formattedCodeSnippets).trim();
 
     if (finalText || files.length > 0) {
-      onSendMessage(finalText, files);
+      // Limpa o input IMEDIATAMENTE antes de enviar
       setHtml('');
+      const currentFiles = [...files];
       files.forEach(file => { if(file.preview) URL.revokeObjectURL(file.preview) });
       setFiles([]);
       setCodeSnippets([]);
+      
+      try {
+        await onSendMessage(finalText, currentFiles);
+      } catch {
+        // Erro já é tratado no chat com botão de reenvio
+        // Não precisa mostrar toast
+      }
     }
   };
   
@@ -240,7 +216,6 @@ export const ChatInput = ({ onSendMessage, isLoading, onStop }: Props) => {
     setInputMode('text');
   };
 
-  // Enviar com Enter, nova linha com Shift+Enter
   const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -259,51 +234,19 @@ export const ChatInput = ({ onSendMessage, isLoading, onStop }: Props) => {
         <input {...getInputProps()} />
         <div className='relative'>
           <div className={`relative bg-gray-800 border border-gray-700 rounded-2xl focus-within:ring-2 focus-within:ring-primary`}>
-              <AnimatePresence>
-                {(files.length > 0 || codeSnippets.length > 0) && (
-                  <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className='p-2 border-b border-gray-700'>
-                    <div className='flex flex-wrap gap-2'>
-                      {files.map(file => (
-                        file.type.startsWith('image/') ? (
-                          <div key={file.id} className='relative w-16 h-16'>
-                            <img src={file.preview} alt={file.name} className='w-full h-full object-cover rounded-md'/>
-                            <button type="button" onClick={() => removeFile(file.id)} className="absolute -top-1.5 -right-1.5 bg-gray-600 rounded-full p-0.5 text-white hover:bg-red-500"><X size={14}/></button>
-                          </div>
-                        ) : ( <FileBadge key={file.id} file={file} icon={getFileIcon(file.name)} onRemove={() => removeFile(file.id)} /> )
-                      ))}
-                      {codeSnippets.map((snippet) => {
-                        const Icon = languageIcons[snippet.language] || Code;
-                        return (
-                          <div key={snippet.id} className='group relative flex items-center gap-2 px-3 py-2 h-auto bg-gray-900 rounded-md border border-gray-700 text-sm'>
-                            <Icon size={16} className="text-gray-400"/>
-                            <span className="text-gray-300">{SUPPORTED_LANGUAGES.find(l => l.value === snippet.language)?.label || snippet.language}</span>
-                            <div className="absolute -top-2 -right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-gray-800 rounded-md p-1 border border-gray-700">
-                                <button type="button" onClick={() => openCodeModal(snippet)} className="p-1 text-gray-400 hover:text-white"><Pencil size={12}/></button>
-                                <button type="button" onClick={() => removeCodeSnippet(snippet.id)} className="p-1 text-gray-400 hover:text-red-500"><Trash2 size={12}/></button>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+              <AttachmentPreview
+                files={files}
+                codeSnippets={codeSnippets}
+                onRemoveFile={removeFile}
+                onRemoveCodeSnippet={removeCodeSnippet}
+                onEditCodeSnippet={openCodeModal}
+                getFileIcon={getFileIcon}
+              />
               <form ref={formRef} onSubmit={handleSubmit} className="relative flex items-center space-x-2 p-2">
-                <Menu as="div" className="relative flex-shrink-0">
-                  <MenuButton className='p-3 h-10 w-10 flex items-center justify-center rounded-full text-gray-400 hover:bg-gray-700 hover:text-gray-200'>
-                    <Plus size={20}/>
-                  </MenuButton>
-                  <Transition as={Fragment} enter="transition ease-out duration-100" enterFrom="transform opacity-0 scale-95" enterTo="transform opacity-100 scale-100" leave="transition ease-in duration-75" leaveFrom="transform opacity-100 scale-100" leaveTo="transform opacity-0 scale-95">
-                    <div className="relative">
-                      <MenuItems className="absolute bottom-full left-0 mb-2 w-56 origin-bottom-left rounded-xl bg-primary text-white shadow-lg focus:outline-none p-2 z-20">
-                        <div className="absolute -bottom-1 left-3 w-4 h-4 bg-primary rotate-45 transform" />
-                        <MenuItem>{({ focus }) => ( <button type="button" onClick={open} className={`${focus ? 'bg-white/10' : ''} group flex w-full items-center rounded-md px-3 py-2 text-sm`}> <Image className="mr-3 h-5 w-5" /> Enviar Imagens </button> )}</MenuItem>
-                        <MenuItem>{({ focus }) => ( <button type="button" onClick={open} className={`${focus ? 'bg-white/10' : ''} group flex w-full items-center rounded-md px-3 py-2 text-sm`}> <FileText className="mr-3 h-5 w-5" /> Enviar Documentos </button> )}</MenuItem>
-                        <MenuItem>{({ focus }) => ( <button type="button" onClick={() => openCodeModal()} className={`${focus ? 'bg-white/10' : ''} group flex w-full items-center rounded-md px-3 py-2 text-sm`}> <Code className="mr-3 h-5 w-5" /> Anexar Código </button> )}</MenuItem>
-                      </MenuItems>
-                    </div>
-                  </Transition>
-                </Menu>
+                <AttachmentMenu
+                  onOpenFiles={open}
+                  onOpenCodeModal={() => openCodeModal()}
+                />
                 <ContentEditable
                   innerRef={(current: HTMLDivElement | null) => (editableRef.current = current)}
                   html={html}
@@ -314,7 +257,6 @@ export const ChatInput = ({ onSendMessage, isLoading, onStop }: Props) => {
                   className="flex-1 min-h-[40px] max-h-48 overflow-y-auto px-4 py-2 text-gray-200 focus:outline-none custom-scroll [&:empty:not(:focus)]:before:content-[attr(data-placeholder)] [&:empty:not(:focus)]:before:text-gray-500"
                   data-placeholder="Pergunte algo ou cole uma imagem..."
                   disabled={isLoading}
-                  // 3. ADICIONAR ESTAS PROPRIEDADES
                   spellCheck={false}
                   autoCorrect="off"
                   autoCapitalize="off"
@@ -331,58 +273,16 @@ export const ChatInput = ({ onSendMessage, isLoading, onStop }: Props) => {
         </div>
       </div>
 
-    {/* ... (o restante do seu componente com o Dialog permanece o mesmo) ... */}
-    <Transition appear show={inputMode === 'code'} as={Fragment}>
-      <Dialog as="div" className="relative z-50" onClose={() => setInputMode('text')}>
-        <Transition.Child as={Fragment} enter="ease-out duration-300" enterFrom="opacity-0" enterTo="opacity-100" leave="ease-in duration-200" leaveFrom="opacity-100" leaveTo="opacity-0">
-            <div className="fixed inset-0 bg-black/60" />
-        </Transition.Child>
-        <div className="fixed inset-0 overflow-y-auto">
-            <div className="flex min-h-full items-center justify-center p-4 text-center">
-                <Dialog.Panel className="w-full max-w-2xl transform overflow-hidden rounded-2xl bg-gray-800 text-left align-middle shadow-xl transition-all border border-gray-700">
-                    <Dialog.Title as="h3" className="text-lg font-medium leading-6 text-gray-100 p-6 border-b border-gray-700">
-                        {editingSnippetId ? "Editar Trecho de Código" : "Anexar Trecho de Código"}
-                    </Dialog.Title>
-                    <div className="p-6">
-                        <div className="mb-4">
-                            <label htmlFor="codeLanguage" className="block text-sm font-medium text-gray-300 mb-1">Linguagem:</label>
-                            <select 
-                                id="codeLanguage" 
-                                value={codeLanguage} 
-                                onChange={(e) => setCodeLanguage(e.target.value)} 
-                                className="block w-full rounded-md border-gray-700 bg-gray-900 text-gray-200 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-                            >
-                                {SUPPORTED_LANGUAGES.map(lang => (
-                                    <option key={lang.value} value={lang.value}>{lang.label}</option>
-                                ))}
-                            </select>
-                        </div>
-                        <textarea value={codeContent} onChange={(e) => setCodeContent(e.target.value)} className="w-full h-48 p-2 bg-gray-900 text-gray-200 rounded-md font-mono text-sm border border-gray-700 focus:outline-none focus:ring-1 focus:ring-primary custom-scroll" placeholder="Cole seu código aqui..."/>
-                        {codeContent && (
-                            <div className="mt-4">
-                                <label className="block text-sm font-medium text-gray-300 mb-2">Preview:</label>
-                                <div className="max-h-48 overflow-y-auto rounded-md bg-gray-900 border border-gray-700">
-                                    <SyntaxHighlighter 
-                                        language={codeLanguage} 
-                                        style={vscDarkPlus} 
-                                        customStyle={{ margin: 0, background: 'transparent' }}
-                                        children={codeContent}
-                                    />
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                    <div className="bg-gray-700/50 p-4 flex justify-end space-x-2">
-                        <button type="button" onClick={() => setInputMode('text')} className="px-4 py-2 text-sm font-medium text-gray-300 bg-gray-600 rounded-md hover:bg-gray-500">Cancelar</button>
-                        <button type="button" onClick={handleCodeSubmit} className="px-4 py-2 text-sm font-medium text-white bg-primary rounded-md hover:bg-primary-hover">
-                            {editingSnippetId ? "Salvar Alterações" : "Anexar"}
-                        </button>
-                    </div>
-                </Dialog.Panel>
-            </div>
-        </div>
-      </Dialog>
-    </Transition>
+      <CodeModal
+        isOpen={inputMode === 'code'}
+        onClose={() => setInputMode('text')}
+        codeContent={codeContent}
+        setCodeContent={setCodeContent}
+        codeLanguage={codeLanguage}
+        setCodeLanguage={setCodeLanguage}
+        onSubmit={handleCodeSubmit}
+        isEditing={editingSnippetId !== null}
+      />
     </>
   );
 };

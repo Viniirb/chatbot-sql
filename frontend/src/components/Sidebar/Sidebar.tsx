@@ -1,17 +1,19 @@
 import { useState, useEffect, useRef } from 'react';
-import { PlusCircle, MessageSquare, Pin, Trash2, PinOff, Search, Pencil, Check, X, Share2 } from 'lucide-react';
-import type { ChatSession } from '../../types';
+import { PlusCircle, MessageSquare, Pin, Trash2, PinOff, Search, Pencil, Check, X, Share2, BarChart3 } from 'lucide-react';
+import type { ChatSession, SessionStats as NewSessionStats } from '../../core/domain/entities';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ConfirmModal } from '../ConfirmModal/ConfirmModal';
+import { SessionStats } from '../SessionStats/SessionStats';
 
 interface Props {
-  sessions: Record<string, ChatSession>;
+  sessions: ChatSession[];
   activeSessionId: string | null;
   onNewChat: () => void;
   onSwitchChat: (sessionId: string) => void;
   onDeleteChat: (sessionId: string) => void;
   onTogglePin: (sessionId: string) => void;
   onRenameChat: (sessionId: string, newTitle: string) => void;
+  onGetSessionStats?: () => Promise<NewSessionStats | null>;
   isOpen: boolean;
 }
 
@@ -23,6 +25,7 @@ export const Sidebar = ({
   onDeleteChat,
   onTogglePin, 
   onRenameChat,
+  onGetSessionStats,
   isOpen, 
 }: Props) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -30,6 +33,7 @@ export const Sidebar = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingText, setEditingText] = useState('');
+  const [showStats, setShowStats] = useState(false);
   const editInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -39,7 +43,7 @@ export const Sidebar = ({
     }
   }, [editingId]);
 
-  const allSessions = Object.values(sessions).sort((a, b) => (a.isPinned === b.isPinned) ? 0 : a.isPinned ? -1 : 1);
+  const allSessions = sessions.sort((a, b) => (a.isPinned === b.isPinned) ? 0 : a.isPinned ? -1 : 1);
   
   const filteredSessions = searchTerm.length > 0
     ? allSessions.filter(session => session.title.toLowerCase().includes(searchTerm.toLowerCase()))
@@ -90,14 +94,14 @@ export const Sidebar = ({
       exit={{ opacity: 0, x: -20 }}
       transition={{ duration: 0.2 }}
       onClick={(e) => { e.preventDefault(); onSwitchChat(session.id); }}
-      className={`group flex items-center justify-between p-2 rounded-md text-sm whitespace-nowrap cursor-pointer ${
+      className={`group flex items-center justify-between gap-2 p-2 rounded-md text-sm cursor-pointer ${
         session.id === activeSessionId 
           ? 'bg-gray-800 text-white' 
           : 'text-gray-400 hover:bg-gray-800 hover:text-white'
       }`}
     >
-      <div className="flex items-center space-x-2 truncate">
-        <MessageSquare size={16} />
+      <div className="flex items-center gap-2 min-w-0 flex-1 overflow-hidden" title={editingId === session.id ? undefined : session.title}>
+        <MessageSquare size={16} className="flex-shrink-0" />
         {editingId === session.id ? (
           <input 
             ref={editInputRef}
@@ -107,10 +111,10 @@ export const Sidebar = ({
             onChange={(e) => setEditingText(e.target.value)}
             onBlur={() => setEditingId(null)}
             onKeyDown={(e) => { if (e.key === 'Enter') handleRenameConfirm(e, session.id)}}
-            className="bg-transparent text-white outline-none ring-1 ring-primary rounded-sm px-1"
+            className="bg-transparent text-white outline-none ring-1 ring-primary rounded-sm px-1 flex-1 min-w-0"
           />
         ) : (
-          <span className="truncate">{session.title}</span>
+          <span className="truncate block">{session.title}</span>
         )}
       </div>
 
@@ -159,6 +163,28 @@ export const Sidebar = ({
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
+
+        {activeSessionId && onGetSessionStats && (
+          <div className="p-2 border-b border-white/5">
+            <button
+              onClick={() => setShowStats(!showStats)}
+              className="w-full flex items-center justify-between p-2 text-sm text-gray-400 hover:text-gray-200 hover:bg-gray-800/50 rounded-md transition-colors"
+            >
+              <span className="flex items-center space-x-2">
+                <BarChart3 size={16} />
+                <span>Estatísticas da Sessão</span>
+              </span>
+              <span className={`transform transition-transform ${showStats ? 'rotate-180' : ''}`}>
+                ▼
+              </span>
+            </button>
+            
+            <SessionStats 
+              onGetStats={onGetSessionStats}
+              isVisible={showStats}
+            />
+          </div>
+        )}
 
         <nav className="flex-1 pt-2 space-y-1 overflow-y-auto custom-scroll">
           <AnimatePresence>
