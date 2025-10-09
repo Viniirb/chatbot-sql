@@ -20,7 +20,7 @@ export class ServerStatusRepository implements IServerStatusRepository {
     dbStatus: 'connected' | 'erro_db' | 'falha_import';
   } | null> {
     try {
-      const response = await this.apiClient.get<ServerStatusResponse>('/status');
+      const response = await this.apiClient.getStatus<ServerStatusResponse>('/status');
       return {
         status: response.status,
         service: response.service,

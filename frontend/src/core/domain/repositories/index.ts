@@ -45,3 +45,5 @@ export interface IQuotaRepository {
     };
   } | null>;
 }
+
+export * from './export-repository.interface';

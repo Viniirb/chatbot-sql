@@ -1,5 +1,5 @@
 import type { ISessionStorageRepository } from '../../core/domain/repositories';
-import type { ChatSession } from '../../core/domain/entities';
+import type { ChatSession, Message } from '../../core/domain/entities';
 
 const SESSIONS_KEY = 'chat_sessions';
 const BACKEND_MAPPING_KEY = 'backend_session_mapping';
@@ -36,10 +36,19 @@ export class SessionStorageRepository implements ISessionStorageRepository {
           updatedAt: isNaN(updatedAt.getTime()) ? new Date() : updatedAt,
           messages: s.messages.map((msg) => {
             const timestamp = msg.timestamp instanceof Date ? msg.timestamp : new Date(msg.timestamp);
-            return {
+            const message: Message = {
               ...msg,
               timestamp: isNaN(timestamp.getTime()) ? new Date() : timestamp,
             };
+            
+            if (message.error?.canRetryAt) {
+              const canRetryAt = message.error.canRetryAt instanceof Date 
+                ? message.error.canRetryAt 
+                : new Date(message.error.canRetryAt);
+              message.error.canRetryAt = isNaN(canRetryAt.getTime()) ? undefined : canRetryAt;
+            }
+            
+            return message;
           }),
         };
         return acc;

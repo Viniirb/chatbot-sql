@@ -8,3 +8,6 @@ createRoot(document.getElementById('root')!).render(
     <App />
   </StrictMode>,
 )
+
+// Garante que o tema roxo premium está sempre aplicado
+document.getElementById('root')?.classList.add('theme-purple');

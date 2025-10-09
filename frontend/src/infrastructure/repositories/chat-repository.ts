@@ -14,14 +14,21 @@ interface SessionResponse {
   session_id: string;
 }
 
+interface AgentInfo {
+  model: string;
+  temperature: number;
+  max_tokens: number;
+  provider: string;
+}
+
 interface SessionStatsResponse {
   session_id: string;
-  created_at: number;
-  last_activity: number;
   message_count: number;
-  has_active_dataset: boolean;
-  active_dataset_info: unknown | null;
+  query_count: number;
+  created_at: string;
   session_exists: boolean;
+  agent?: AgentInfo;
+  message?: string;
 }
 
 export class ChatRepository implements IChatRepository {
@@ -46,20 +53,14 @@ export class ChatRepository implements IChatRepository {
       const response = await this.apiClient.get<SessionStatsResponse>(`/sessions/${sessionId}/stats`);
       
       if (response && response.session_exists) {
-        // Converte timestamp Unix para Date
-        const createdAt = new Date(response.created_at * 1000);
-        const lastActivity = new Date(response.last_activity * 1000);
-        
         return {
           sessionId: response.session_id,
-          totalMessages: response.message_count,
-          // Como o backend não retorna separado, vamos estimar baseado na contagem total
-          userMessages: Math.ceil(response.message_count / 2),
-          assistantMessages: Math.floor(response.message_count / 2),
-          createdAt,
-          lastActivity,
-          contextLength: 0, // Backend não fornece, pode ser calculado se necessário
-          tokenUsage: undefined, // Backend não fornece ainda
+          messageCount: response.message_count,
+          queryCount: response.query_count,
+          createdAt: new Date(response.created_at),
+          sessionExists: response.session_exists,
+          agent: response.agent,
+          message: response.message,
         };
       }
       
@@ -71,7 +72,6 @@ export class ChatRepository implements IChatRepository {
   }
 
   async sendMessage(query: string, conversationHistory: Message[], sessionId?: string, signal?: AbortSignal): Promise<string> {
-    // Filtra apenas mensagens do usuário e formata como string
     const prompt = conversationHistory
       .filter(msg => msg.role === 'user')
       .map(msg => msg.content)
@@ -82,7 +82,7 @@ export class ChatRepository implements IChatRepository {
       { 
         query, 
         session_id: sessionId,
-        prompt: prompt || undefined // Envia apenas o histórico de mensagens do usuário
+        prompt: prompt || undefined
       },
       signal
     );

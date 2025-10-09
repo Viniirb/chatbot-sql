@@ -1,5 +1,4 @@
-import { Fragment } from 'react';
-import { Menu, MenuButton, MenuItems, MenuItem, Transition } from '@headlessui/react';
+import * as Popover from '@radix-ui/react-popover';
 import { Plus, Image, FileText, Code } from 'lucide-react';
 
 interface AttachmentMenuProps {
@@ -9,65 +8,68 @@ interface AttachmentMenuProps {
 
 export const AttachmentMenu = ({ onOpenFiles, onOpenCodeModal }: AttachmentMenuProps) => {
   return (
-    <Menu as="div" className="relative flex-shrink-0">
-      <MenuButton className="p-3 h-10 w-10 flex items-center justify-center rounded-full text-gray-400 hover:bg-gray-700 hover:text-gray-200">
-        <Plus size={20}/>
-      </MenuButton>
-      
-      <Transition 
-        as={Fragment} 
-        enter="transition ease-out duration-100" 
-        enterFrom="transform opacity-0 scale-95" 
-        enterTo="transform opacity-100 scale-100" 
-        leave="transition ease-in duration-75" 
-        leaveFrom="transform opacity-100 scale-100" 
-        leaveTo="transform opacity-0 scale-95"
-      >
-        <div className="relative">
-          <MenuItems className="absolute bottom-full left-0 mb-2 w-56 origin-bottom-left rounded-xl bg-primary text-white shadow-lg focus:outline-none p-2 z-20">
-            <div className="absolute -bottom-1 left-3 w-4 h-4 bg-primary rotate-45 transform" />
-            
-            <MenuItem>
-              {({ focus }) => ( 
-                <button 
-                  type="button" 
-                  onClick={onOpenFiles} 
-                  className={`${focus ? 'bg-white/10' : ''} group flex w-full items-center rounded-md px-3 py-2 text-sm`}
-                > 
-                  <Image className="mr-3 h-5 w-5" /> 
-                  Enviar Imagens 
-                </button> 
-              )}
-            </MenuItem>
-            
-            <MenuItem>
-              {({ focus }) => ( 
-                <button 
-                  type="button" 
-                  onClick={onOpenFiles} 
-                  className={`${focus ? 'bg-white/10' : ''} group flex w-full items-center rounded-md px-3 py-2 text-sm`}
-                > 
-                  <FileText className="mr-3 h-5 w-5" /> 
-                  Enviar Documentos 
-                </button> 
-              )}
-            </MenuItem>
-            
-            <MenuItem>
-              {({ focus }) => ( 
-                <button 
-                  type="button" 
-                  onClick={onOpenCodeModal} 
-                  className={`${focus ? 'bg-white/10' : ''} group flex w-full items-center rounded-md px-3 py-2 text-sm`}
-                > 
-                  <Code className="mr-3 h-5 w-5" /> 
-                  Anexar Código 
-                </button> 
-              )}
-            </MenuItem>
-          </MenuItems>
-        </div>
-      </Transition>
-    </Menu>
+    <Popover.Root>
+      <Popover.Trigger asChild>
+        <button
+          type="button"
+          className="p-3 h-10 w-10 flex items-center justify-center rounded-full text-gray-400 hover:bg-gray-700 hover:text-gray-200 transition-all duration-200"
+          aria-label="Anexar arquivo"
+        >
+          <Plus size={20} />
+        </button>
+      </Popover.Trigger>
+
+      <Popover.Portal>
+        <Popover.Content
+          className="z-[9999] w-56 rounded-2xl bg-gray-900/95 backdrop-blur-xl border border-gray-700/50 shadow-2xl p-2 animate-in fade-in-0 zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2"
+          sideOffset={8}
+          align="start"
+          side="top"
+        >
+          <div className="flex flex-col gap-1">
+            <Popover.Close asChild>
+              <button
+                type="button"
+                onClick={onOpenFiles}
+                className="group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-white transition-all duration-200 hover:bg-white/10 hover:scale-[1.02]"
+              >
+                <div className="p-1.5 rounded-lg bg-blue-500/20 group-hover:bg-blue-500/30 transition-colors">
+                  <Image size={18} className="text-blue-400" />
+                </div>
+                <span>Enviar Imagens</span>
+              </button>
+            </Popover.Close>
+
+            <Popover.Close asChild>
+              <button
+                type="button"
+                onClick={onOpenFiles}
+                className="group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-white transition-all duration-200 hover:bg-white/10 hover:scale-[1.02]"
+              >
+                <div className="p-1.5 rounded-lg bg-green-500/20 group-hover:bg-green-500/30 transition-colors">
+                  <FileText size={18} className="text-green-400" />
+                </div>
+                <span>Enviar Documentos</span>
+              </button>
+            </Popover.Close>
+
+            <Popover.Close asChild>
+              <button
+                type="button"
+                onClick={onOpenCodeModal}
+                className="group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-white transition-all duration-200 hover:bg-white/10 hover:scale-[1.02]"
+              >
+                <div className="p-1.5 rounded-lg bg-purple-500/20 group-hover:bg-purple-500/30 transition-colors">
+                  <Code size={18} className="text-purple-400" />
+                </div>
+                <span>Anexar Código</span>
+              </button>
+            </Popover.Close>
+          </div>
+
+          <Popover.Arrow className="fill-gray-900/95" />
+        </Popover.Content>
+      </Popover.Portal>
+    </Popover.Root>
   );
 };

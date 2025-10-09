@@ -73,8 +73,7 @@ export const useChat = (): UseChatReturn => {
     };
 
     initializeSessions();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [container, createSessionUseCase, sessions]);
 
   const createNewSession = useCallback(async () => {
     try {
@@ -179,7 +178,6 @@ export const useChat = (): UseChatReturn => {
       if (err.message !== 'REQUEST_ABORTED') {
         const errorMessage = getErrorMessage(err);
         
-        // Adiciona erro na mensagem do usuário ao invés de criar nova mensagem
         const canRetryAt = err.retryAfter 
           ? new Date(Date.now() + err.retryAfter * 1000)
           : undefined;
@@ -232,7 +230,6 @@ export const useChat = (): UseChatReturn => {
     const messageToRetry = session.messages.find(m => m.id === messageId);
     if (!messageToRetry || messageToRetry.role !== 'user') return;
     
-    // Não remove mensagens, apenas limpa o erro e faz o reenvio
     setLoading(true);
     abortControllerRef.current = new AbortController();
 
@@ -243,21 +240,18 @@ export const useChat = (): UseChatReturn => {
         abortControllerRef.current.signal
       );
 
-      // Remove erro e adiciona resposta do bot
       setSessions(prev => {
         const updated = prev.map(session => {
           if (session.id === activeSessionId) {
-            // Remove o erro da mensagem que tinha erro
             const messagesWithoutError = session.messages.map(msg => {
               if (msg.id === messageId) {
-                // eslint-disable-next-line @typescript-eslint/no-unused-vars
                 const { error, ...rest } = msg;
+                void error;
                 return rest;
               }
               return msg;
             });
             
-            // Adiciona a resposta do bot
             const updatedSession = {
               ...session,
               messages: [...messagesWithoutError, botMessage],
@@ -279,7 +273,6 @@ export const useChat = (): UseChatReturn => {
           ? new Date(Date.now() + err.retryAfter * 1000)
           : undefined;
         
-        // Adiciona erro novamente na mesma mensagem
         setSessions(prev => {
           const updated = prev.map(session => {
             if (session.id === activeSessionId) {
@@ -364,7 +357,6 @@ function getErrorMessage(error: ApiError): string {
   if (error.type === 'QUOTA_ERROR') {
     switch (error.errorCode) {
       case 'QUOTA_EXCEEDED':
-        // Se tem retryAfter em minutos, mostra isso. Senão, mostra 24h
         if (error.retryAfter && error.retryAfter < 3600) {
           const minutes = Math.ceil(error.retryAfter / 60);
           return `Limite de uso diário da API atingido. O serviço estará disponível novamente em ${minutes} minuto${minutes > 1 ? 's' : ''}.`;

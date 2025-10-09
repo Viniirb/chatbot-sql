@@ -42,21 +42,24 @@ export const Footer = ({ onSendMessage, isLoading, onStop }: Props) => {
   const statusDisplay = getStatusDisplay(serverStatus, loading);
 
   return (
-    <footer className="p-4 border-t border-gray-800">
-      <div className="max-w-4xl mx-auto">
+    <footer className="px-4 py-3 border-t border-purple-500/20 bg-black/95 backdrop-blur-xl shadow-2xl shadow-purple-500/5">
+      <div className="max-w-4xl mx-auto space-y-2">
         <ChatInput
           onSendMessage={onSendMessage}
           isLoading={isLoading}
           onStop={onStop}
         />
 
-        <div className="flex justify-between items-center mt-3">
-          <p className={`text-xs font-medium ${statusDisplay.color}`}>
-            {statusDisplay.text}
-          </p>
-          <p className="text-xs text-right text-gray-600">
-            © 2025 - Vinicius Rolim Barbosa. Todos os direitos reservados.
-          </p>
+        <div className="flex justify-between items-center text-[10px] text-gray-500 px-1">
+          <div className="flex items-center gap-2">
+            <div className={`w-1.5 h-1.5 rounded-full ${statusDisplay.color === 'text-green-400' ? 'bg-green-400 shadow-green-400/50' : statusDisplay.color === 'text-yellow-500' ? 'bg-yellow-400 shadow-yellow-400/50' : 'bg-red-500 shadow-red-500/50'} animate-pulse shadow-lg`}></div>
+            <span className={statusDisplay.color}>
+              {statusDisplay.text}
+            </span>
+          </div>
+          <span className="text-gray-600">
+            © 2025 Vinicius Rolim Barbosa
+          </span>
         </div>
       </div>
     </footer>

@@ -43,7 +43,13 @@ export default function App() {
   }, [activeSession?.messages.length]);
 
   return (
-    <div className="flex h-screen bg-black font-sans text-gray-200 overflow-hidden">
+    <div className="flex h-screen bg-black font-sans text-gray-200 overflow-hidden relative">
+      {/* Background animated blur effect */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-1/4 -left-48 w-96 h-96 bg-purple-600/30 rounded-full blur-3xl animate-pulse-slow" />
+        <div className="absolute bottom-1/4 -right-48 w-96 h-96 bg-pink-600/20 rounded-full blur-3xl animate-pulse-slow" style={{ animationDelay: '2s' }} />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-purple-500/10 rounded-full blur-3xl animate-pulse-slow" style={{ animationDelay: '4s' }} />
+      </div>
       <Toaster 
         position="top-right"
         toastOptions={{
@@ -68,10 +74,10 @@ export default function App() {
           onGetSessionStats={getActiveSessionStats}
         />
       </Suspense>
-      <div className="flex flex-col flex-1 relative bg-gray-900/30">
+      <div className="flex flex-col flex-1 relative backdrop-blur-xl bg-gray-950/50 z-10">
         <button 
           onClick={() => setSidebarOpen(!isSidebarOpen)} 
-          className="absolute top-4 left-4 bg-gray-800/50 text-gray-300 p-2 rounded-full hover:bg-gray-700 z-10"
+          className="absolute top-4 left-4 bg-white/5 backdrop-blur-md border border-white/10 text-gray-300 p-2 rounded-xl hover:bg-white/10 hover:border-purple-500/50 transition-all duration-300 z-20 shadow-lg shadow-purple-500/10"
         >
           {isSidebarOpen ? <PanelLeftClose size={16}/> : <PanelLeftOpen size={16}/>}
         </button>
@@ -90,14 +96,14 @@ export default function App() {
               ))}
             </AnimatePresence>
             {loading && (
-              <div className="flex items-start space-x-4">
-                <div className="flex-shrink-0 flex items-center justify-center h-10 w-10 rounded-full bg-gray-700">
-                  <Bot size={20} className="text-gray-400" />
+              <div className="flex items-start space-x-4 animate-fade-in-up">
+                <div className="flex-shrink-0 flex items-center justify-center h-10 w-10 rounded-full bg-gradient-to-br from-purple-500/20 to-pink-500/20 backdrop-blur-sm border border-purple-500/30 animate-float">
+                  <Bot size={20} className="text-purple-300" />
                 </div>
-                <div className="flex items-center space-x-2 px-4 py-3 bg-gray-700 rounded-lg">
-                  <div className="w-2 h-2 bg-gray-500 rounded-full animate-pulse [animation-delay:-0.3s]"></div>
-                  <div className="w-2 h-2 bg-gray-500 rounded-full animate-pulse [animation-delay:-0.15s]"></div>
-                  <div className="w-2 h-2 bg-gray-500 rounded-full animate-pulse"></div>
+                <div className="flex items-center space-x-2 px-5 py-3 bg-gradient-to-r from-purple-500/10 to-pink-500/10 backdrop-blur-sm border border-purple-500/20 rounded-2xl shadow-lg shadow-purple-500/10">
+                  <div className="w-2 h-2 bg-gradient-to-r from-purple-400 to-pink-400 rounded-full animate-pulse [animation-delay:-0.3s] shadow-lg shadow-purple-400/50"></div>
+                  <div className="w-2 h-2 bg-gradient-to-r from-purple-400 to-pink-400 rounded-full animate-pulse [animation-delay:-0.15s] shadow-lg shadow-purple-400/50"></div>
+                  <div className="w-2 h-2 bg-gradient-to-r from-purple-400 to-pink-400 rounded-full animate-pulse shadow-lg shadow-purple-400/50"></div>
                 </div>
               </div>
             )}

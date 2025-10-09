@@ -177,7 +177,6 @@ export const ChatInput = ({ onSendMessage, isLoading, onStop }: Props) => {
     const finalText = (currentText.trim() + formattedCodeSnippets).trim();
 
     if (finalText || files.length > 0) {
-      // Limpa o input IMEDIATAMENTE antes de enviar
       setHtml('');
       const currentFiles = [...files];
       files.forEach(file => { if(file.preview) URL.revokeObjectURL(file.preview) });
@@ -186,9 +185,8 @@ export const ChatInput = ({ onSendMessage, isLoading, onStop }: Props) => {
       
       try {
         await onSendMessage(finalText, currentFiles);
-      } catch {
-        // Erro já é tratado no chat com botão de reenvio
-        // Não precisa mostrar toast
+      } catch (error) {
+        console.error('Erro ao enviar mensagem:', error);
       }
     }
   };
@@ -233,7 +231,7 @@ export const ChatInput = ({ onSendMessage, isLoading, onStop }: Props) => {
       <div {...getRootProps({ className: 'dropzone w-full p-4' })}>
         <input {...getInputProps()} />
         <div className='relative'>
-          <div className={`relative bg-gray-800 border border-gray-700 rounded-2xl focus-within:ring-2 focus-within:ring-primary`}>
+          <div className={`relative bg-gray-900/95 backdrop-blur-xl border border-purple-500/40 rounded-2xl shadow-2xl shadow-purple-500/20 focus-within:ring-2 focus-within:ring-purple-500/60 focus-within:border-purple-500/70 transition-all duration-300`}>
               <AttachmentPreview
                 files={files}
                 codeSnippets={codeSnippets}
@@ -262,10 +260,11 @@ export const ChatInput = ({ onSendMessage, isLoading, onStop }: Props) => {
                   autoCapitalize="off"
                 />
                 {isLoading && onStop ? (
-                  <button type="button" onClick={onStop} className="flex-shrink-0 flex items-center justify-center w-10 h-10 text-white bg-gray-600 rounded-full transition-colors hover:bg-gray-500 z-10"><Square size={20} /></button>
+                  <button type="button" onClick={onStop} className="flex-shrink-0 flex items-center justify-center w-10 h-10 text-white bg-gradient-to-br from-gray-600 to-gray-700 rounded-full transition-all duration-300 hover:from-gray-500 hover:to-gray-600 hover:shadow-lg hover:scale-105 z-10 shadow-md"><Square size={20} /></button>
                 ) : (
-                  <button type="submit" disabled={isLoading || (!html.trim() && files.length === 0 && codeSnippets.length === 0)} className="flex-shrink-0 flex items-center justify-center w-10 h-10 text-white bg-primary rounded-full transition-colors hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed z-10">
-                    <SendHorizontal size={20} />
+                  <button type="submit" disabled={isLoading || (!html.trim() && files.length === 0 && codeSnippets.length === 0)} className="group flex-shrink-0 flex items-center justify-center w-10 h-10 text-white bg-gradient-to-br from-primary via-primary-hover to-primary-dark rounded-full transition-all duration-300 hover:shadow-2xl hover:shadow-primary/60 hover:scale-110 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 z-10 shadow-md shadow-primary/30 relative overflow-hidden">
+                    <SendHorizontal size={20} className="relative z-10 group-hover:scale-110 transition-transform" />
+                    <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700"></div>
                   </button>
                 )}
               </form>

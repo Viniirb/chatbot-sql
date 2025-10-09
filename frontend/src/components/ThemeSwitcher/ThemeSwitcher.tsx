@@ -1,29 +1,10 @@
-import { useTheme } from '../../presentation/hooks/use-theme';
 
 export const ThemeSwitcher = () => {
-  const { theme, setTheme } = useTheme();
-
   return (
     <div className="flex items-center space-x-2">
       <button 
-        aria-label="Set Neutral Theme" 
-        onClick={() => setTheme('theme-neutral')} 
-        className={`w-5 h-5 rounded-full bg-gray-500 ring-2 ring-offset-2 ring-offset-gray-900 ${theme === 'theme-neutral' ? 'ring-white' : 'ring-transparent'} focus:outline-none focus:ring-white`}
-      ></button>
-      <button 
-        aria-label="Set Blue Theme" 
-        onClick={() => setTheme('theme-blue')} 
-        className={`w-5 h-5 rounded-full bg-blue-600 ring-2 ring-offset-2 ring-offset-gray-900 ${theme === 'theme-blue' ? 'ring-white' : 'ring-transparent'} focus:outline-none focus:ring-white`}
-      ></button>
-      <button 
-        aria-label="Set Green Theme" 
-        onClick={() => setTheme('theme-green')} 
-        className={`w-5 h-5 rounded-full bg-green-800 ring-2 ring-offset-2 ring-offset-gray-900 ${theme === 'theme-green' ? 'ring-white' : 'ring-transparent'} focus:outline-none focus:ring-white`}
-      ></button>
-      <button 
-        aria-label="Set Purple Theme" 
-        onClick={() => setTheme('theme-purple')} 
-        className={`w-5 h-5 rounded-full bg-purple-600 ring-2 ring-offset-2 ring-offset-gray-900 ${theme === 'theme-purple' ? 'ring-white' : 'ring-transparent'} focus:outline-none focus:ring-white`}
+        aria-label="Tema Roxo" 
+        className="w-5 h-5 rounded-full bg-purple-600 ring-2 ring-offset-2 ring-offset-gray-900 ring-white focus:outline-none focus:ring-white"
       ></button>
     </div>
   );

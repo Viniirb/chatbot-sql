@@ -7,7 +7,6 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks: (id) => {
-          // Separar vendors grandes em chunks individuais
           if (id.includes('node_modules')) {
             if (id.includes('react') || id.includes('react-dom')) {
               return 'react-vendor';
@@ -30,7 +29,7 @@ export default defineConfig({
             if (id.includes('react-icons') || id.includes('lucide-react')) {
               return 'icons-vendor';
             }
-            // Outros node_modules vão para vendor genérico
+            
             return 'vendor';
           }
         }

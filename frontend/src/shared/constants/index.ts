@@ -13,7 +13,7 @@ export const STORAGE_KEYS = {
 
 export const UI_CONFIG = {
   SIDEBAR_WIDTH: 256,
-  MAX_FILE_SIZE: 10 * 1024 * 1024, // 10MB
+  MAX_FILE_SIZE: 10 * 1024 * 1024,
   MAX_FILES: 5,
   SCROLL_BEHAVIOR: 'smooth',
   TOAST_DURATION: {

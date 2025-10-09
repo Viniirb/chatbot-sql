@@ -3,6 +3,7 @@ from typing import Optional, List, Dict, Any
 from dataclasses import dataclass
 
 from ..domain.entities import Session, SessionId, QueryResult, Message
+from ..domain.export_entities import ExportFormat
 
 
 @dataclass
@@ -24,16 +25,37 @@ class ProcessQueryResponse:
 @dataclass
 class CreateSessionResponse:
     session_id: str
+    created_at: str
 
 
 @dataclass
 class SessionStatsResponse:
     session_id: str
-    created_at: float
-    last_activity: float
+    created_at: str
+    last_activity: str
     message_count: int
     has_active_dataset: bool
     active_dataset_info: Optional[Dict[str, Any]] = None
+    query_count: int = 0
+    updated_at: Optional[str] = None
+
+
+@dataclass
+class UpdateSessionStatsRequest:
+    """Request para atualizar estatísticas da sessão"""
+    message_count: int
+    query_count: int
+    timestamp: str
+
+
+@dataclass
+class UpdateSessionStatsResponse:
+    """Response da atualização de estatísticas"""
+    session_id: str
+    message_count: int
+    query_count: int
+    updated_at: str
+    status: str = "synced"
 
 
 class IProcessQueryUseCase(ABC):
@@ -49,6 +71,10 @@ class ISessionManagementUseCase(ABC):
 
     @abstractmethod
     def get_session_stats(self, session_id: str) -> Optional[SessionStatsResponse]:
+        pass
+    
+    @abstractmethod
+    def update_session_stats(self, session_id: str, request: UpdateSessionStatsRequest) -> UpdateSessionStatsResponse:
         pass
 
     @abstractmethod
@@ -77,4 +103,18 @@ class ISessionService(ABC):
 
     @abstractmethod
     def cleanup_expired_sessions(self, timeout_seconds: int = 3600) -> None:
+        pass
+
+
+@dataclass
+class ExportSessionResponse:
+    content: bytes
+    content_type: str
+    filename: str
+    filepath: Optional[str] = None
+
+
+class IExportSessionUseCase(ABC):
+    @abstractmethod
+    def execute(self, session_id: str, format: ExportFormat) -> ExportSessionResponse:
         pass

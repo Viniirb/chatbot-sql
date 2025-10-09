@@ -3,12 +3,21 @@ import type { ApiError } from '../../core/domain/value-objects';
 
 export class ApiClient {
   private client: AxiosInstance;
+  private statusClient: AxiosInstance;
   private readonly baseURL = 'http://127.0.0.1:8000';
 
   constructor() {
     this.client = axios.create({
       baseURL: this.baseURL,
-      timeout: 30000,
+      timeout: 0,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    this.statusClient = axios.create({
+      baseURL: this.baseURL,
+      timeout: 5000,
       headers: {
         'Content-Type': 'application/json',
       },
@@ -18,9 +27,7 @@ export class ApiClient {
   }
 
   private setupInterceptors(): void {
-    this.client.interceptors.response.use(
-      (response: AxiosResponse) => response,
-      (error) => {
+    const errorHandler = (error: unknown) => {
         if (axios.isCancel(error)) {
           return Promise.reject({ type: 'REQUEST_ABORTED' });
         }
@@ -80,7 +87,16 @@ export class ApiClient {
           type: 'NETWORK_ERROR',
           message: 'Erro de comunicação com o servidor',
         } as ApiError);
-      }
+    };
+
+    this.client.interceptors.response.use(
+      (response: AxiosResponse) => response,
+      errorHandler
+    );
+    
+    this.statusClient.interceptors.response.use(
+      (response: AxiosResponse) => response,
+      errorHandler
     );
   }
 
@@ -101,6 +117,11 @@ export class ApiClient {
 
   async delete<T>(url: string, signal?: AbortSignal): Promise<T> {
     const response = await this.client.delete<T>(url, { signal });
+    return response.data;
+  }
+
+  async getStatus<T>(url: string): Promise<T> {
+    const response = await this.statusClient.get<T>(url);
     return response.data;
   }
 }

@@ -8,7 +8,7 @@ export interface Message {
     message: string;
     retryAfter?: number;
     canRetry: boolean;
-    canRetryAt?: Date; // Timestamp de quando pode reenviar
+    canRetryAt?: Date;
   };
 }
 
@@ -21,15 +21,21 @@ export interface ChatSession {
   updatedAt: Date;
 }
 
+export interface AgentInfo {
+  model: string;
+  temperature: number;
+  max_tokens: number;
+  provider: string;
+}
+
 export interface SessionStats {
   sessionId: string;
-  totalMessages: number;
-  userMessages: number;
-  assistantMessages: number;
+  messageCount: number;
+  queryCount: number;
   createdAt: Date;
-  lastActivity: Date;
-  contextLength: number;
-  tokenUsage?: TokenUsage;
+  sessionExists: boolean;
+  agent?: AgentInfo;
+  message?: string;
 }
 
 export interface TokenUsage {

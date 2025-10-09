@@ -82,12 +82,10 @@ export class SendMessageUseCase {
     const backendMapping = this.storageRepository.getBackendSessionMapping();
     const backendSessionId = backendMapping[sessionId];
     
-    // Obtém o histórico atual da sessão
     const sessions = this.storageRepository.getSessions();
     const currentSession = sessions[sessionId];
     const conversationHistory = currentSession?.messages || [];
 
-    // Envia a mensagem junto com o histórico completo
     const response = await this.chatRepository.sendMessage(
       content,
       conversationHistory,

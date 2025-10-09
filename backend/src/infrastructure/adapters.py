@@ -16,6 +16,45 @@ from sqlalchemy import create_engine
 from ..domain.entities import Session, QueryResult, QueryType, IChatAgent, IQueryContextEnhancer
 from ..application.interfaces import IQueryProcessorService
 
+def _create_pdf_generation_tool(engine):
+    def generate_data_pdf(sql_query: str, title: str = "Relatorio de Dados") -> str:
+        try:
+            print(f"📄 Gerando PDF com query: {sql_query[:100]}...")
+            from sqlalchemy import text
+            
+            with engine.connect() as conn:
+                result = conn.execute(text(sql_query))
+                rows = result.fetchall()
+                columns = result.keys()
+                data = [dict(zip(columns, row)) for row in rows]
+            
+            print(f"📊 Dados obtidos: {len(data)} registros")
+            
+            from .exporters.data_pdf_exporter import DataPdfExporter
+            filepath = DataPdfExporter.export_query_data(data, title)
+            print(f"✅ PDF criado: {filepath}")
+            
+            download_url = f"http://127.0.0.1:8000/{filepath.replace(chr(92), '/')}"
+            filename = filepath.split('\\')[-1].split('/')[-1]
+            
+            return f"✅ PDF gerado com sucesso! {len(data)} registros processados.\n\n📥 [Clique aqui para baixar o arquivo]({download_url})"
+        except Exception as e:
+            error_msg = f"Erro ao gerar PDF: {str(e)}"
+            print(f"❌ {error_msg}")
+            import traceback
+            traceback.print_exc()
+            return error_msg
+    
+    return FunctionTool.from_defaults(
+        fn=generate_data_pdf,
+        name="generate_pdf_tool",
+        description=(
+            "Gera um arquivo PDF com dados de uma consulta SQL. "
+            "Use quando o usuário pedir para gerar/criar um PDF, Excel ou CSV com dados. "
+            "Primeiro use sql_query_tool para ver os dados, depois use esta ferramenta para gerar o arquivo."
+        )
+    )
+
 
 class QueryContextEnhancer(IQueryContextEnhancer):
     CONTEXTUAL_KEYWORDS = [
@@ -63,8 +102,6 @@ class LlamaIndexChatAgent(IChatAgent):
         warnings.filterwarnings("ignore", message=".*Task.*was destroyed but it is pending")
         
         def run_sync():
-            print(f"[DEBUG] Executando query: {query[:100]}...")
-            
             import asyncio
             
             loop = asyncio.new_event_loop()
@@ -78,10 +115,8 @@ class LlamaIndexChatAgent(IChatAgent):
             
             try:
                 result = loop.run_until_complete(execute())
-                print(f"[DEBUG] Resultado tipo: {type(result)}")
                 return result
             except Exception as e:
-                print(f"[DEBUG] Erro durante execução: {e}")
                 raise
             finally:
                 try:
@@ -116,13 +151,15 @@ class LlamaIndexChatAgent(IChatAgent):
             pool_recycle=3600,
             echo=False
         )
-        db = SQLDatabase(engine, include_tables=None, sample_rows_in_table_info=3)
+        db = SQLDatabase(engine, include_tables=None, sample_rows_in_table_info=2)
+        
+        model_name = "gemini-2.5-flash-lite"
         
         llm = GoogleGenAI(
-            model_name="models/gemini-2.5-flash",
+            model=model_name,
             api_key=self._config['google_api_key'],
-            temperature=0.1,
-            max_tokens=4096,
+            temperature=0.2,
+            max_tokens=2048,
             top_p=0.95
         )
         
@@ -134,8 +171,8 @@ class LlamaIndexChatAgent(IChatAgent):
         
         Settings.llm = llm
         Settings.embed_model = embed_model
-        Settings.chunk_size = 1024
-        Settings.chunk_overlap = 200
+        Settings.chunk_size = 512
+        Settings.chunk_overlap = 100
 
         sql_query_engine = NLSQLTableQueryEngine(
             sql_database=db,
@@ -146,31 +183,30 @@ class LlamaIndexChatAgent(IChatAgent):
             return_raw=False
         )
         
-        tools = [
-            QueryEngineTool.from_defaults(
-                query_engine=sql_query_engine,
-                name="sql_query_tool",
-                description=(
-                    "Converte uma pergunta em linguagem natural para uma consulta SQL T-SQL "
-                    "e a executa no banco de dados SQL Server. Retorna o resultado da consulta formatado."
-                )
+        sql_query_tool = QueryEngineTool.from_defaults(
+            query_engine=sql_query_engine,
+            name="sql_query_tool",
+            description=(
+                "FERRAMENTA OBRIGATÓRIA para QUALQUER pergunta sobre dados de pessoas. "
+                "Executa consultas SQL T-SQL no banco de dados SQL Server. "
+                "USE SEMPRE que o usuário perguntar sobre pessoas, dados, informações do banco. "
+                "Retorna o resultado da consulta formatado."
             )
-        ]
-
-        memory = ChatMemoryBuffer.from_defaults(token_limit=4000, tokenizer_fn=Settings.tokenizer)
+        )
         
-        system_prompt = """
-Você é um assistente especialista em análise de dados e SQL Server (T-SQL) com MEMÓRIA CONVERSACIONAL.
+        pdf_tool = _create_pdf_generation_tool(engine)
+        
+        tools = [sql_query_tool, pdf_tool]
 
-Responsabilidades:
-1. Use sempre a ferramenta `sql_query_tool` para responder perguntas sobre dados
-2. Responda sempre em português brasileiro
-3. Use sintaxe T-SQL (TOP N, não LIMIT; GETDATE(), não NOW())
-4. Considere o contexto de conversas anteriores fornecido no prompt
-5. Se o usuário se refere a "dessas", "desses", ele está falando de dados mencionados anteriormente
+        memory = ChatMemoryBuffer.from_defaults(token_limit=1500, tokenizer_fn=Settings.tokenizer)
+        
+        system_prompt = """Assistente SQL Server. Use sql_query_tool para consultar. Sintaxe T-SQL: TOP N.
+Contexto: "dessas/desses" = dados anteriores.
 
-Seja preciso, contextual e útil!
-"""
+Para gerar PDF com dados:
+1. Use sql_query_tool para buscar
+2. Use generate_pdf_tool com a query SQL
+3. Retorne o link de download"""
         
         return ReActAgent(
             tools=tools,
@@ -192,19 +228,46 @@ Seja preciso, contextual e útil!
 
     def _extract_response_text(self, response) -> str:
         try:
-            print(f"[DEBUG] Tipo de resposta: {type(response)}")
+            if hasattr(response, 'response'):
+                chat_message = response.response
+                
+                if hasattr(chat_message, 'blocks'):
+                    blocks = chat_message.blocks
+                    if blocks:
+                        text_parts = []
+                        for block in blocks:
+                            try:
+                                block_type = type(block).__name__
+                                if block_type == 'ThinkingBlock':
+                                    continue
+                                if hasattr(block, 'text'):
+                                    text_parts.append(str(block.text))
+                                elif hasattr(block, 'content'):
+                                    text_parts.append(str(block.content))
+                            except Exception:
+                                continue
+                        
+                        if text_parts:
+                            return ' '.join(text_parts)
+                
+                if hasattr(chat_message, 'content'):
+                    try:
+                        content = chat_message.content
+                        if content:
+                            return str(content)
+                    except Exception:
+                        pass
             
-            if hasattr(response, 'response') and response.response:
-                return str(response.response)
             elif hasattr(response, 'result') and callable(response.result):
                 return str(response.result())
             elif hasattr(response, 'result'):
                 return str(response.result)
-            else:
-                return str(response)
+            
+            return str(response)
+            
         except Exception as e:
-            print(f"[DEBUG] Erro ao extrair: {e}")
-            return f"Erro ao extrair resposta: {str(e)}"
+            print(f"⚠️ Erro ao extrair texto: {e}")
+            return "Desculpe, houve um erro ao processar a resposta."
 
 
 class QueryProcessorService(IQueryProcessorService):
@@ -213,9 +276,22 @@ class QueryProcessorService(IQueryProcessorService):
         self._context_enhancer = context_enhancer
 
     async def process_query(self, query: str, session: Session) -> str:
+        print(f"\n🟢 QUERY PROCESSOR: Iniciando processamento...")
+        
         enhanced_query = self._context_enhancer.enhance_query(query, session)
         
-        response = self._chat_agent.process_query(enhanced_query)
+        print(f"🟢 QUERY PROCESSOR: Chamando chat_agent.process_query...")
+        
+        try:
+            response = self._chat_agent.process_query(enhanced_query)
+            
+            print(f"🟢 QUERY PROCESSOR: Resposta recebida do agent")
+            print(f"   Resposta: {response[:100]}...")
+            
+        except Exception as e:
+            print(f"\n❌ QUERY PROCESSOR: Erro ao chamar agent")
+            print(f"   Erro: {str(e)}")
+            raise
         
         if "SELECT" in query.upper():
             await self._try_capture_query_result(query, session)
@@ -257,13 +333,15 @@ class LlamaIndexAgentFactory:
             raise ValueError("Missing required environment variables")
 
         engine = create_engine(db_uri, pool_pre_ping=True, pool_recycle=3600, echo=False)
-        db = SQLDatabase(engine, include_tables=None, sample_rows_in_table_info=3)
+        db = SQLDatabase(engine, include_tables=None, sample_rows_in_table_info=2)
+        
+        model_name = "gemini-2.5-flash-lite"
         
         llm = GoogleGenAI(
-            model_name="models/gemini-2.5-flash",
+            model=model_name,
             api_key=google_api_key,
-            temperature=0.1,
-            max_tokens=4096,
+            temperature=0.2,
+            max_tokens=2048,
             top_p=0.95
         )
         
@@ -275,8 +353,8 @@ class LlamaIndexAgentFactory:
         
         Settings.llm = llm
         Settings.embed_model = embed_model
-        Settings.chunk_size = 1024
-        Settings.chunk_overlap = 200
+        Settings.chunk_size = 512
+        Settings.chunk_overlap = 100
 
         sql_query_engine = NLSQLTableQueryEngine(
             sql_database=db,
@@ -292,26 +370,24 @@ class LlamaIndexAgentFactory:
                 query_engine=sql_query_engine,
                 name="sql_query_tool",
                 description=(
-                    "Converte uma pergunta em linguagem natural para uma consulta SQL T-SQL "
-                    "e a executa no banco de dados SQL Server. Retorna o resultado da consulta formatado."
+                    "FERRAMENTA OBRIGATÓRIA para QUALQUER pergunta sobre dados de pessoas. "
+                    "Executa consultas SQL T-SQL no banco de dados SQL Server. "
+                    "USE SEMPRE que o usuário perguntar sobre pessoas, dados, informações do banco. "
+                    "Retorna o resultado da consulta formatado."
                 )
-            )
+            ),
+            _create_pdf_generation_tool(engine)
         ]
 
-        memory = ChatMemoryBuffer.from_defaults(token_limit=4000, tokenizer_fn=Settings.tokenizer)
+        memory = ChatMemoryBuffer.from_defaults(token_limit=1500, tokenizer_fn=Settings.tokenizer)
         
-        system_prompt = """
-Você é um assistente especialista em análise de dados e SQL Server (T-SQL) com MEMÓRIA CONVERSACIONAL.
+        system_prompt = """Assistente SQL Server. Use sql_query_tool para consultar. Sintaxe T-SQL: TOP N.
+Contexto: "dessas/desses" = dados anteriores.
 
-Responsabilidades:
-1. Use sempre a ferramenta `sql_query_tool` para responder perguntas sobre dados
-2. Responda sempre em português brasileiro
-3. Use sintaxe T-SQL (TOP N, não LIMIT; GETDATE(), não NOW())
-4. Considere o contexto de conversas anteriores fornecido no prompt
-5. Se o usuário se refere a "dessas", "desses", ele está falando de dados mencionados anteriormente
-
-Seja preciso, contextual e útil!
-"""
+Para gerar PDF com dados:
+1. Use sql_query_tool para buscar
+2. Use generate_pdf_tool com a query SQL
+3. Retorne o link de download"""
         
         react_agent = ReActAgent(
             tools=tools,

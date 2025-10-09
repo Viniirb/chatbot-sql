@@ -23,7 +23,7 @@ export const ConfirmModal = ({ isOpen, onClose, onConfirm, title, description }:
           leaveFrom="opacity-100"
           leaveTo="opacity-0"
         >
-          <div className="fixed inset-0 bg-black/60" />
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-md" />
         </Transition.Child>
 
         <div className="fixed inset-0 overflow-y-auto">
@@ -37,37 +37,35 @@ export const ConfirmModal = ({ isOpen, onClose, onConfirm, title, description }:
               leaveFrom="opacity-100 scale-100"
               leaveTo="opacity-0 scale-95"
             >
-              <Dialog.Panel className="w-full max-w-md transform overflow-hidden rounded-2xl bg-gray-800 p-6 text-left align-middle shadow-xl transition-all border border-gray-700">
+              <Dialog.Panel className="w-full max-w-md transform overflow-hidden rounded-3xl bg-gray-900/95 backdrop-blur-2xl p-6 text-left align-middle shadow-2xl shadow-purple-500/10 transition-all border border-purple-500/20">
                 <div className='flex items-start space-x-4'>
-                    <div className='mx-auto flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-red-900/50'>
-                        <AlertTriangle className='h-6 w-6 text-red-400' aria-hidden="true"/>
+                    <div className='flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-red-500/20 to-red-700/20 backdrop-blur-sm border border-red-500/30'>
+                        <AlertTriangle className='h-7 w-7 text-red-400' aria-hidden="true"/>
                     </div>
-                    <div className='mt-0 text-left'>
+                    <div className='mt-0 text-left flex-1'>
                         <Dialog.Title
                         as="h3"
-                        className="text-lg font-medium leading-6 text-gray-100"
+                        className="text-xl font-bold leading-6 text-gray-100 mb-2"
                         >
                         {title}
                         </Dialog.Title>
-                        <div className="mt-2">
-                        <p className="text-sm text-gray-400">
+                        <p className="text-sm text-gray-400 leading-relaxed">
                             {description}
                         </p>
-                        </div>
                     </div>
                 </div>
 
                 <div className="mt-6 flex justify-end space-x-3">
                   <button
                     type="button"
-                    className="inline-flex justify-center rounded-md border border-transparent bg-gray-700 px-4 py-2 text-sm font-medium text-gray-200 hover:bg-gray-600 focus:outline-none"
+                    className="inline-flex justify-center rounded-xl border border-gray-700 bg-gray-800/80 backdrop-blur-sm px-6 py-2.5 text-sm font-semibold text-gray-200 hover:bg-gray-700 hover:border-gray-600 focus:outline-none transition-all duration-300 hover:scale-105 shadow-lg"
                     onClick={onClose}
                   >
                     Cancelar
                   </button>
                   <button
                     type="button"
-                    className="inline-flex justify-center rounded-md border border-transparent bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 focus:outline-none"
+                    className="inline-flex justify-center rounded-xl border border-transparent bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 px-6 py-2.5 text-sm font-semibold text-white focus:outline-none transition-all duration-300 hover:scale-105 shadow-xl shadow-red-500/40"
                     onClick={() => {
                         onConfirm();
                         onClose();

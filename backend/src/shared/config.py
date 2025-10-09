@@ -10,9 +10,9 @@ class DatabaseConfig:
 @dataclass 
 class GoogleAIConfig:
     api_key: str
-    model_name: str = "models/gemini-2.5-flash"
-    temperature: float = 0.1
-    max_tokens: int = 4096
+    model_name: str = "gemini-2.5-flash-lite"
+    temperature: float = 0.2
+    max_tokens: int = 2048
     top_p: float = 0.95
 
 

@@ -12,6 +12,36 @@ class QueryType(Enum):
     EXPORT_PDF = "export_pdf"
 
 
+@dataclass
+class SessionStats:
+    """Estatísticas da sessão armazenadas em memória"""
+    message_count: int = 0
+    query_count: int = 0
+    created_at: datetime = None
+    updated_at: datetime = None
+    
+    def __post_init__(self):
+        if self.created_at is None:
+            self.created_at = datetime.now()
+        if self.updated_at is None:
+            self.updated_at = datetime.now()
+    
+    def update(self, message_count: int, query_count: int) -> None:
+        """Atualiza as estatísticas"""
+        self.message_count = message_count
+        self.query_count = query_count
+        self.updated_at = datetime.now()
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Converte para dicionário"""
+        return {
+            "message_count": self.message_count,
+            "query_count": self.query_count,
+            "created_at": self.created_at.isoformat(),
+            "updated_at": self.updated_at.isoformat()
+        }
+
+
 @dataclass(frozen=True)
 class SessionId:
     value: str
@@ -47,6 +77,7 @@ class Session:
         self._message_history: List[Message] = []
         self._query_results: List[QueryResult] = []
         self._active_dataset: Optional[QueryResult] = None
+        self._stats: SessionStats = SessionStats()
 
     @property
     def session_id(self) -> SessionId:
@@ -67,6 +98,10 @@ class Session:
     @property
     def active_dataset(self) -> Optional[QueryResult]:
         return self._active_dataset
+    
+    @property
+    def stats(self) -> SessionStats:
+        return self._stats
 
     def add_message(self, message: Message) -> None:
         self._message_history.append(message)
@@ -80,6 +115,11 @@ class Session:
         if query_result.row_count > 0:
             self._active_dataset = query_result
         
+        self._last_activity = datetime.now()
+    
+    def update_stats(self, message_count: int, query_count: int) -> None:
+        """Atualiza as estatísticas da sessão"""
+        self._stats.update(message_count, query_count)
         self._last_activity = datetime.now()
 
     def is_expired(self, timeout_seconds: int) -> bool:
