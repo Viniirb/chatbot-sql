@@ -1,4 +1,5 @@
 import uuid
+import asyncio
 from typing import Optional
 from datetime import datetime
 
@@ -46,7 +47,7 @@ class ProcessQueryUseCase(IProcessQueryUseCase):
 
             print(f"\n🔵 USE CASE: Chamando query_processor...")
             
-            response_text = await self._query_processor.process_query(request.query, session)
+            response_text = await self._query_processor.process_query(request.query, session, request.request_id)
             
             print(f"\n🔵 USE CASE: Resposta recebida do processor")
             print(f"   Resposta: {response_text[:100]}...")
@@ -68,9 +69,17 @@ class ProcessQueryUseCase(IProcessQueryUseCase):
                 context_used=True
             )
 
+        except asyncio.CancelledError:
+            # Request was cancelled (client disconnected or cancel endpoint used).
+            print("⚪️ USE CASE: execução cancelada pelo cliente", flush=True)
+            return ProcessQueryResponse(
+                success=False,
+                error="Operação cancelada pelo cliente",
+                error_code="CANCELLED",
+                error_type="CANCELLED"
+            )
         except Exception as e:
-            import traceback
-            
+            import traceback, re
             error_msg = str(e)
             print(f"\n{'='*70}")
             print(f"❌ ERRO CAPTURADO NO USE CASE")
@@ -78,11 +87,35 @@ class ProcessQueryUseCase(IProcessQueryUseCase):
             print(f"\nTraceback completo:")
             print(traceback.format_exc())
             print(f"{'='*70}\n")
-            
+
+            # Detecta erro de quota/rate limit do Gemini
+            if "429" in error_msg and ("quota" in error_msg.lower() or "RESOURCE_EXHAUSTED" in error_msg or "Too Many Requests" in error_msg):
+                retry_match = re.search(r'retry in ([0-9]+)', error_msg)
+                retry_seconds = int(retry_match.group(1)) if retry_match else 30
+                return ProcessQueryResponse(
+                    success=False,
+                    error="Limite de requisições atingido. Tente novamente em alguns segundos.",
+                    error_code="QUOTA_EXCEEDED",
+                    error_type="QUOTA_ERROR",
+                    retry_after=retry_seconds
+                )
+            # Erro de limite de tokens do modelo (caso comum)
+            if 'MAX_TOKENS' in error_msg or 'Response was terminated early' in error_msg:
+                return ProcessQueryResponse(
+                    success=False,
+                    error=("A resposta do modelo foi interrompida por limite de tokens. "
+                           "Tente uma pergunta mais curta, divida a consulta em partes, "
+                           "ou reduza o contexto enviado."),
+                    error_code="MAX_TOKENS",
+                    error_type="MODEL_ERROR"
+                )
+
+            # Erro genérico
             return ProcessQueryResponse(
                 success=False,
                 error=f"Erro ao processar consulta: {error_msg}",
-                error_code="PROCESSING_ERROR"
+                error_code="PROCESSING_ERROR",
+                error_type="SERVER_ERROR"
             )
 
 

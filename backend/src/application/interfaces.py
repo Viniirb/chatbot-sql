@@ -10,6 +10,8 @@ from ..domain.export_entities import ExportFormat
 class ProcessQueryRequest:
     query: str
     session_id: str
+    request_id: Optional[str] = None
+    client_message_id: Optional[str] = None
 
 
 @dataclass
@@ -18,6 +20,10 @@ class ProcessQueryResponse:
     data: Optional[str] = None
     error: Optional[str] = None
     error_code: Optional[str] = None
+    # Tipo categórico do erro (ex: QUOTA_ERROR, SERVER_ERROR, MODEL_ERROR)
+    error_type: Optional[str] = None
+    # Quando aplicável, número de segundos sugeridos para retry
+    retry_after: Optional[int] = None
     session_id: Optional[str] = None
     context_used: bool = False
 
@@ -84,7 +90,7 @@ class ISessionManagementUseCase(ABC):
 
 class IQueryProcessorService(ABC):
     @abstractmethod
-    async def process_query(self, query: str, session: Session) -> str:
+    async def process_query(self, query: str, session: Session, request_id: Optional[str] = None) -> str:
         pass
 
 
@@ -116,5 +122,5 @@ class ExportSessionResponse:
 
 class IExportSessionUseCase(ABC):
     @abstractmethod
-    def execute(self, session_id: str, format: ExportFormat) -> ExportSessionResponse:
+    def execute(self, session_id: str, format: ExportFormat, session_payload: Optional[dict] = None) -> ExportSessionResponse:
         pass

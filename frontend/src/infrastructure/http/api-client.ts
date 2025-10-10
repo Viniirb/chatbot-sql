@@ -105,8 +105,8 @@ export class ApiClient {
     return response.data;
   }
 
-  async post<T>(url: string, data?: unknown, signal?: AbortSignal): Promise<T> {
-    const response = await this.client.post<T>(url, data, { signal });
+  async post<T>(url: string, data?: unknown, signal?: AbortSignal, headers?: Record<string, string>): Promise<T> {
+    const response = await this.client.post<T>(url, data, { signal, headers });
     return response.data;
   }
 

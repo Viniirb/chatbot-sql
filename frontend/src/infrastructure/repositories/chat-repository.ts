@@ -1,6 +1,7 @@
 import type { IChatRepository } from '../../core/domain/repositories';
 import type { SessionStats, Message } from '../../core/domain/entities';
 import { ApiClient } from '../http/api-client';
+import { v4 as uuidv4 } from 'uuid';
 
 interface ApiResponse {
   answer: string;
@@ -71,22 +72,44 @@ export class ChatRepository implements IChatRepository {
     }
   }
 
-  async sendMessage(query: string, conversationHistory: Message[], sessionId?: string, signal?: AbortSignal): Promise<string> {
+  async sendMessage(query: string, conversationHistory: Message[], sessionId?: string, signal?: AbortSignal, clientMessageId?: string): Promise<{ answer: string; requestId: string }> {
     const prompt = conversationHistory
       .filter(msg => msg.role === 'user')
       .map(msg => msg.content)
       .join('\n');
+
+    const requestId = uuidv4();
+
+    const headers: Record<string, string> = {
+      'X-Request-ID': requestId
+    };
+
+    if (clientMessageId) {
+      headers['X-Client-Message-Id'] = clientMessageId;
+    }
 
     const response = await this.apiClient.post<ApiResponse>(
       '/ask',
       { 
         query, 
         session_id: sessionId,
-        prompt: prompt || undefined
+        prompt: prompt || undefined,
+        client_message_id: clientMessageId
       },
-      signal
+      signal,
+      headers
     );
-    return response.answer;
+    return { answer: response.answer, requestId };
+  }
+
+  async cancelRequest(requestId: string): Promise<boolean> {
+    try {
+      await this.apiClient.post(`/requests/${encodeURIComponent(requestId)}/cancel`, {});
+      return true;
+    } catch (error) {
+      console.warn('Failed to send cancel request to server', error);
+      return false;
+    }
   }
 
   async generateTitle(prompt: string): Promise<string> {

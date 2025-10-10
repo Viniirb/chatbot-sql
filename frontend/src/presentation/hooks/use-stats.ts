@@ -58,7 +58,7 @@ export const useStats = (): UseStatsReturn => {
       //   }),
       // });
       
-      console.log(`[Stats] Sincronizado stats do session ${sessionId}:`, stats);
+  // stats sincronizados
     } catch (error) {
       console.error(`[Stats] Erro ao sincronizar stats do session ${sessionId}:`, error);
     }

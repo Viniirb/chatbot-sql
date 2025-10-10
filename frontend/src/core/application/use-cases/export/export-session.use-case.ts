@@ -1,8 +1,8 @@
 import type { IExportRepository } from '../../../domain/repositories/export-repository.interface';
-import type { ExportFormat, ExportResponse } from '../../../domain/value-objects/export-format';
+import type { ExportFormat, ExportRequest, ExportResponse } from '../../../domain/value-objects/export-format';
 
 export interface IExportSessionUseCase {
-  execute(sessionId: string, format: ExportFormat): Promise<ExportResponse>;
+  execute(request: ExportRequest): Promise<ExportResponse>;
 }
 
 export class ExportSessionUseCase implements IExportSessionUseCase {
@@ -12,16 +12,16 @@ export class ExportSessionUseCase implements IExportSessionUseCase {
     this.exportRepository = exportRepository;
   }
 
-  async execute(sessionId: string, format: ExportFormat): Promise<ExportResponse> {
-    if (!sessionId) {
-      throw new Error('ID da sessão é obrigatório');
+  async execute(request: ExportRequest): Promise<ExportResponse> {
+    if (!request || !request.session) {
+      throw new Error('Dados da sessão são obrigatórios para exportação');
     }
 
     const validFormats: ExportFormat[] = ['pdf', 'json', 'txt'];
-    if (!validFormats.includes(format)) {
+    if (!validFormats.includes(request.format)) {
       throw new Error('Formato inválido. Use: pdf, json, txt');
     }
 
-    return await this.exportRepository.exportSession(sessionId, format);
+    return await this.exportRepository.exportSession(request);
   }
 }

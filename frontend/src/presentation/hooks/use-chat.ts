@@ -36,6 +36,7 @@ export const useChat = (): UseChatReturn => {
   });
   const [loading, setLoading] = useState(false);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const currentRequestIdRef = useRef<string | null>(null);
   const initializedRef = useRef(false);
 
   useEffect(() => {
@@ -129,10 +130,14 @@ export const useChat = (): UseChatReturn => {
     setSessions(prev => {
       const updated = prev.map(session => {
         if (session.id === activeSessionId) {
+          const updatedMessages = [...session.messages, userMessage];
+          // Calcula queryCount dinamicamente
+          const newQueryCount = updatedMessages.filter(m => m.role === 'user' && m.content.toLowerCase().includes('select')).length;
           const updatedSession = {
             ...session,
-            messages: [...session.messages, userMessage],
+            messages: updatedMessages,
             updatedAt: new Date(),
+            queryCount: newQueryCount,
           };
           updateSessionUseCase.execute(session.id, updatedSession);
           return updatedSession;
@@ -146,11 +151,14 @@ export const useChat = (): UseChatReturn => {
     abortControllerRef.current = new AbortController();
 
     try {
-      const { botMessage } = await sendMessageUseCase.execute(
+      const { botMessage, requestId } = await sendMessageUseCase.execute(
         activeSessionId,
         content,
-        abortControllerRef.current.signal
+        abortControllerRef.current.signal,
+        userMessage.id
       );
+
+      currentRequestIdRef.current = requestId || null;
 
       setSessions(prev => {
         const updated = prev.map(session => {
@@ -174,14 +182,9 @@ export const useChat = (): UseChatReturn => {
       }
     } catch (error: unknown) {
       const err = error as ApiError;
-      
-      if (err.message !== 'REQUEST_ABORTED') {
-        const errorMessage = getErrorMessage(err);
-        
-        const canRetryAt = err.retryAfter 
-          ? new Date(Date.now() + err.retryAfter * 1000)
-          : undefined;
-          
+      // Detecta erro de rede/fetch
+      if (err.message === 'REQUEST_ABORTED') {
+        // Marca a mensagem local como abortada para permitir reenvio
         setSessions(prev => {
           const updated = prev.map(session => {
             if (session.id === activeSessionId) {
@@ -189,6 +192,246 @@ export const useChat = (): UseChatReturn => {
                 if (msg.id === userMessage.id) {
                   return {
                     ...msg,
+                    error: {
+                      message: 'Requisição cancelada pelo usuário',
+                      canRetry: true
+                    }
+                  };
+                }
+                return msg;
+              });
+              const updatedSession = {
+                ...session,
+                messages: updatedMessages,
+                updatedAt: new Date(),
+              };
+              updateSessionUseCase.execute(session.id, updatedSession);
+              return updatedSession;
+            }
+            return session;
+          });
+          return updated;
+        });
+        // Also attempt to inform backend to cancel the running work
+        try {
+          const chatRepo = container.get('ChatRepository') as { cancelRequest: (id: string) => Promise<boolean> };
+          if (currentRequestIdRef.current) {
+            chatRepo.cancelRequest(currentRequestIdRef.current).catch(() => {});
+          }
+        } catch {
+          // ignore
+        }
+      } else if (error instanceof TypeError || err.message?.includes('Failed to fetch') || err.message?.includes('NetworkError')) {
+        // Erro de conexão
+        const networkError: ApiError = {
+          type: 'NETWORK_ERROR',
+          errorCode: undefined,
+          message: 'Falha de conexão com o servidor. Tente novamente mais tarde.',
+        };
+        const errorMessage = getErrorMessage(networkError);
+  // atribuindo erro de rede à mensagem
+        setSessions(prev => {
+          const updated = prev.map(session => {
+            if (session.id === activeSessionId) {
+              // Se não existe mensagem do usuário, adiciona uma nova bolha de erro
+              const hasUserMessage = session.messages.some(msg => msg.id === userMessage.id);
+              let updatedMessages;
+              if (hasUserMessage) {
+                updatedMessages = session.messages.map(msg => {
+                  if (msg.id === userMessage.id) {
+                    // atualizando mensagem existente com erro
+                    return {
+                      ...msg,
+                      error: {
+                        message: errorMessage,
+                        canRetry: true,
+                      }
+                    };
+                  }
+                  return msg;
+                });
+              } else {
+                // adicionando nova mensagem de erro
+                updatedMessages = [
+                  ...session.messages,
+                  {
+                    ...userMessage,
+                    error: {
+                      message: errorMessage,
+                      canRetry: true,
+                    }
+                  }
+                ];
+              }
+              const updatedSession = {
+                ...session,
+                messages: updatedMessages,
+                updatedAt: new Date(),
+              };
+              updateSessionUseCase.execute(session.id, updatedSession);
+              return updatedSession;
+            }
+            return session;
+          });
+          return updated;
+        });
+      } else {
+        const errorMessage = getErrorMessage(err);
+        const canRetryAt = err.retryAfter 
+          ? new Date(Date.now() + err.retryAfter * 1000)
+          : undefined;
+  // atribuindo erro à mensagem
+        setSessions(prev => {
+          const updated = prev.map(session => {
+            if (session.id === activeSessionId) {
+              let foundUserMsg = false;
+              const updatedMessages = session.messages.map(msg => {
+                if (msg.id === userMessage.id) {
+                  // atualizando mensagem existente com erro
+                  foundUserMsg = true;
+                  return {
+                    ...msg,
+                    error: {
+                      message: errorMessage,
+                      retryAfter: err.retryAfter,
+                      canRetry: err.type === 'QUOTA_ERROR' || err.type === 'NETWORK_ERROR',
+                      canRetryAt,
+                    }
+                  };
+                }
+                return msg;
+              });
+              // Se não encontrou a mensagem do usuário, cria uma bolha de erro do assistente
+              let finalMessages = updatedMessages;
+              if (!foundUserMsg) {
+                // adicionando bolha de erro do assistente
+                finalMessages = [
+                  ...updatedMessages,
+                  {
+                    id: Math.random().toString(36).slice(2),
+                    content: errorMessage,
+                    role: 'assistant',
+                    timestamp: new Date(),
+                    error: {
+                      message: errorMessage,
+                      canRetry: false,
+                    }
+                  }
+                ];
+              }
+              const updatedSession = {
+                ...session,
+                messages: finalMessages,
+                updatedAt: new Date(),
+              };
+              updateSessionUseCase.execute(session.id, updatedSession);
+              return updatedSession;
+            }
+            return session;
+          });
+          return updated;
+        });
+        throw err;
+      }
+    } finally {
+      setLoading(false);
+      abortControllerRef.current = null;
+      currentRequestIdRef.current = null;
+    }
+  }, [activeSessionId, sessions, sendMessageUseCase, generateTitleUseCase, updateSession, updateSessionUseCase]);
+
+  const retryMessage = useCallback(async (messageId: string) => {
+    if (!activeSessionId || loading) return;
+    
+    const session = sessions.find(s => s.id === activeSessionId);
+    if (!session) return;
+    
+    const messageToRetry = session.messages.find(m => m.id === messageId);
+    if (!messageToRetry || messageToRetry.role !== 'user') return;
+    
+    setLoading(true);
+    abortControllerRef.current = new AbortController();
+
+    // Immediately clear the error from the message so the UI returns to
+    // the normal (purple) user bubble while the retry is in progress.
+    setSessions(prev => {
+      const updated = prev.map(session => {
+        if (session.id === activeSessionId) {
+          const messagesCleared = session.messages.map(msg => {
+            if (msg.id === messageId) {
+              const { error, ...rest } = msg;
+              const newMetadata = { ...(rest.metadata || {}), retrying: true };
+              return { ...rest, metadata: newMetadata } as any;
+            }
+            return msg;
+          });
+          const updatedSession = {
+            ...session,
+            messages: messagesCleared,
+            updatedAt: new Date(),
+          };
+          updateSessionUseCase.execute(session.id, updatedSession);
+          return updatedSession;
+        }
+        return session;
+      });
+      return updated;
+    });
+
+    try {
+      const { botMessage, requestId } = await sendMessageUseCase.execute(
+        activeSessionId,
+        messageToRetry.content,
+        abortControllerRef.current.signal,
+        messageToRetry.id
+      );
+
+      currentRequestIdRef.current = requestId || null;
+
+      setSessions(prev => {
+        const updated = prev.map(session => {
+          if (session.id === activeSessionId) {
+            // Clear retrying flag from the retried user message
+            const messagesClearedRetry = session.messages.map(m => {
+              if (m.id === messageId) {
+                const md = { ...(m.metadata || {}) } as Record<string, unknown>;
+                delete md.retrying;
+                return { ...m, metadata: Object.keys(md).length ? md : undefined };
+              }
+              return m;
+            });
+
+            const updatedSession = {
+              ...session,
+              messages: [...messagesClearedRetry, botMessage],
+              updatedAt: new Date(),
+            };
+            updateSessionUseCase.execute(session.id, updatedSession);
+            return updatedSession;
+          }
+          return session;
+        });
+        return updated;
+      });
+    } catch (error: unknown) {
+      const err = error as ApiError;
+      
+      if (err.message !== 'REQUEST_ABORTED') {
+        const errorMessage = getErrorMessage(err);
+        const canRetryAt = err.retryAfter 
+          ? new Date(Date.now() + err.retryAfter * 1000)
+          : undefined;
+        // Restore the error on the message if the retry failed and clear retrying flag
+        setSessions(prev => {
+          const updated = prev.map(session => {
+            if (session.id === activeSessionId) {
+              const updatedMessages = session.messages.map(msg => {
+                if (msg.id === messageId) {
+                  const md = { ...(msg.metadata || {}) } as Record<string, unknown>;
+                  delete md.retrying;
+                  return {
+                    ...msg,
+                    metadata: Object.keys(md).length ? md : undefined,
                     error: {
                       message: errorMessage,
                       retryAfter: err.retryAfter,
@@ -212,85 +455,27 @@ export const useChat = (): UseChatReturn => {
           });
           return updated;
         });
-        
-        throw err;
-      }
-    } finally {
-      setLoading(false);
-      abortControllerRef.current = null;
-    }
-  }, [activeSessionId, sessions, sendMessageUseCase, generateTitleUseCase, updateSession, updateSessionUseCase]);
-
-  const retryMessage = useCallback(async (messageId: string) => {
-    if (!activeSessionId || loading) return;
-    
-    const session = sessions.find(s => s.id === activeSessionId);
-    if (!session) return;
-    
-    const messageToRetry = session.messages.find(m => m.id === messageId);
-    if (!messageToRetry || messageToRetry.role !== 'user') return;
-    
-    setLoading(true);
-    abortControllerRef.current = new AbortController();
-
-    try {
-      const { botMessage } = await sendMessageUseCase.execute(
-        activeSessionId,
-        messageToRetry.content,
-        abortControllerRef.current.signal
-      );
-
-      setSessions(prev => {
-        const updated = prev.map(session => {
-          if (session.id === activeSessionId) {
-            const messagesWithoutError = session.messages.map(msg => {
-              if (msg.id === messageId) {
-                const { error, ...rest } = msg;
-                void error;
-                return rest;
-              }
-              return msg;
-            });
-            
-            const updatedSession = {
-              ...session,
-              messages: [...messagesWithoutError, botMessage],
-              updatedAt: new Date(),
-            };
-            updateSessionUseCase.execute(session.id, updatedSession);
-            return updatedSession;
-          }
-          return session;
-        });
-        return updated;
-      });
-    } catch (error: unknown) {
-      const err = error as ApiError;
-      
-      if (err.message !== 'REQUEST_ABORTED') {
-        const errorMessage = getErrorMessage(err);
-        const canRetryAt = err.retryAfter 
-          ? new Date(Date.now() + err.retryAfter * 1000)
-          : undefined;
-        
+      } else {
+        // If retry was aborted, restore the error state and clear retrying flag
         setSessions(prev => {
           const updated = prev.map(session => {
             if (session.id === activeSessionId) {
               const updatedMessages = session.messages.map(msg => {
                 if (msg.id === messageId) {
+                  const md = { ...(msg.metadata || {}) } as Record<string, unknown>;
+                  delete md.retrying;
                   return {
                     ...msg,
+                    metadata: Object.keys(md).length ? md : undefined,
                     error: {
-                      message: errorMessage,
-                      retryAfter: err.retryAfter,
-                      canRetry: err.type === 'QUOTA_ERROR' || err.type === 'NETWORK_ERROR',
-                      canRetryAt,
+                      message: 'Requisição cancelada pelo usuário',
+                      canRetry: true
                     }
                   };
                 }
                 return msg;
               });
-              
+
               const updatedSession = {
                 ...session,
                 messages: updatedMessages,
@@ -312,24 +497,124 @@ export const useChat = (): UseChatReturn => {
 
   const abortMessage = useCallback(() => {
     if (abortControllerRef.current) {
+      // Optimistically mark current user message as canceled so UI can show retry
+      setSessions(prev => {
+        const updated = prev.map(session => {
+          if (session.id === activeSessionId) {
+            const updatedMessages = session.messages.map(msg => {
+              // find the most recent user message without assistant reply
+              return {
+                ...msg
+              };
+            });
+            // Attempt to set the last user message as canceled
+            for (let i = updatedMessages.length - 1; i >= 0; i--) {
+              const m = updatedMessages[i];
+              if (m.role === 'user' && !m.error) {
+                updatedMessages[i] = {
+                  ...m,
+                  error: { message: 'Requisição cancelada pelo usuário', canRetry: true }
+                } as any;
+                break;
+              }
+            }
+            const updatedSession = { ...session, messages: updatedMessages, updatedAt: new Date() };
+            updateSessionUseCase.execute(session.id, updatedSession);
+            return updatedSession;
+          }
+          return session;
+        });
+        return updated;
+      });
+
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
       setLoading(false);
+
+      // Try to inform backend about cancellation
+      try {
+        const chatRepo = container.get('ChatRepository') as { cancelRequest: (id: string) => Promise<boolean> };
+        if (currentRequestIdRef.current) {
+          chatRepo.cancelRequest(currentRequestIdRef.current).catch(() => {});
+        }
+      } catch (e) {
+        // ignore
+      }
+      currentRequestIdRef.current = null;
     }
   }, []);
 
   const getActiveSessionStats = useCallback(async (): Promise<SessionStats | null> => {
     if (!activeSessionId) return null;
-    
+
     const chatRepo = container.get('ChatRepository') as { getSessionStats: (sessionId: string) => Promise<SessionStats | null> };
-    const storageRepo = container.get('SessionStorageRepository') as { getBackendSessionMapping: () => Record<string, string> };
+    const storageRepo = container.get('SessionStorageRepository') as { getBackendSessionMapping: () => Record<string, string>; getSessions: () => Record<string, ChatSession> };
     const backendMapping = storageRepo.getBackendSessionMapping();
     const backendSessionId = backendMapping[activeSessionId];
-    
+
     if (!backendSessionId) return null;
-    
+
     try {
-      return await chatRepo.getSessionStats(backendSessionId);
+      const stats = await chatRepo.getSessionStats(backendSessionId);
+      // Se stats retornam zeradas, tenta sincronizar com localStorage
+      if (
+        stats &&
+        stats.messageCount === 0 &&
+        stats.queryCount === 0 &&
+        stats.message === 'Nova sessão criada automaticamente'
+      ) {
+        // Busca sessão local
+        const localSessions = storageRepo.getSessions();
+        const localSession = localSessions[activeSessionId];
+        if (localSession) {
+          const response = await fetch(`http://127.0.0.1:8000/sessions/${backendSessionId}/sync`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              id: localSession.id,
+              title: localSession.title,
+              createdAt: localSession.createdAt instanceof Date ? localSession.createdAt.toISOString() : localSession.createdAt,
+              updatedAt: localSession.updatedAt instanceof Date ? localSession.updatedAt.toISOString() : localSession.updatedAt,
+              messages: localSession.messages.map(m => ({
+                ...m,
+                timestamp: m.timestamp instanceof Date ? m.timestamp.toISOString() : m.timestamp
+              })),
+              queryCount: localSession.messages.filter(m => m.role === 'user' && m.content.toLowerCase().includes('select')).length
+            })
+          });
+          if (response.ok) {
+            let synced = null;
+            try {
+              synced = await response.json();
+            } catch {
+              synced = null;
+            }
+            if (!synced) {
+              // Retorno seguro se o backend não enviar JSON
+              return {
+                sessionId: backendSessionId,
+                messageCount: localSession.messages.length,
+                queryCount: 0,
+                createdAt: new Date(),
+                sessionExists: true,
+                agent: stats.agent,
+                message: 'Sessão sincronizada (sem resposta detalhada do backend)'
+              };
+            }
+            // Fallback para sessionId/session_id, previne crash se resposta for nula
+            return {
+              sessionId: synced.sessionId || synced.session_id || backendSessionId,
+              messageCount: synced.messageCount || synced.message_count || localSession.messages.length,
+              queryCount: synced.queryCount || synced.query_count || 0,
+              createdAt: synced.createdAt ? new Date(synced.createdAt) : (synced.created_at ? new Date(synced.created_at) : new Date()),
+              sessionExists: true,
+              agent: stats.agent,
+              message: 'Sessão sincronizada com sucesso'
+            };
+          }
+        }
+      }
+      return stats;
     } catch (error) {
       console.error('Failed to get session stats:', error);
       return null;
@@ -385,5 +670,9 @@ function getErrorMessage(error: ApiError): string {
     }
   }
   
+  // Tratamento especial para erro de tokens do modelo
+  if (error.message && error.message.includes('MAX_TOKENS')) {
+    return 'A resposta foi interrompida porque atingiu o limite máximo de tokens do modelo. Tente uma pergunta mais curta ou divida sua consulta.';
+  }
   return error.message || 'Desculpe, ocorreu um erro inesperado. Tente novamente.';
 }

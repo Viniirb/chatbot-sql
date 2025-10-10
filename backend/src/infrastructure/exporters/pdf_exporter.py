@@ -78,4 +78,6 @@ class PdfExporter(IExporter):
         }
         for old, new in replacements.items():
             text = text.replace(old, new)
-        return text
+        
+        filtered = ''.join(ch for ch in text if ord(ch) <= 0xFF)
+        return filtered

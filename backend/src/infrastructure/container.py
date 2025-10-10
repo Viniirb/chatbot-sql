@@ -1,5 +1,8 @@
 from functools import lru_cache
 from typing import Dict, Any
+import os
+import logging
+from datetime import datetime
 
 from ..application.interfaces import IProcessQueryUseCase, ISessionManagementUseCase, ISessionService, IQueryProcessorService, IExportSessionUseCase
 from ..application.use_cases import ProcessQueryUseCase, SessionManagementUseCase
@@ -8,6 +11,12 @@ from ..infrastructure.services import SessionService, InMemorySessionRepository
 from ..infrastructure.adapters import QueryProcessorService, QueryContextEnhancer
 from ..infrastructure.lazy_agent import LazyAgentFactory
 from ..presentation.controllers import ChatController, SessionController, ExportController, create_app
+
+logger = logging.getLogger(__name__)
+
+CONTAINER_VERBOSE = os.getenv("CONTAINER_VERBOSE", "0") in ("1", "true", "True")
+CONTAINER_EMOJI = os.getenv("CONTAINER_EMOJI", "0") in ("1", "true", "True")
+
 
 
 class DIContainer:
@@ -31,22 +40,26 @@ class DIContainer:
         raise ValueError(f"Service {interface} not registered")
 
 
+
 @lru_cache()
 def get_container() -> DIContainer:
-    print("🟨 CONTAINER: Iniciando criação do container...")
+    now = datetime.now().strftime("%H:%M:%S")
+    print(f"📦 Iniciando criação do container... — {now}", flush=True)
     container = DIContainer()
-    
-    print("🟨 CONTAINER: Criando repositories e services...")
+    now = datetime.now().strftime("%H:%M:%S")
+    print(f"📦 Criando repositories e services... — {now}", flush=True)
     session_repository = InMemorySessionRepository()
     session_service = SessionService(session_repository)
-    
-    print("🟨 CONTAINER: Criando chat_agent via LazyAgentFactory...")
+    now = datetime.now().strftime("%H:%M:%S")
+    print(f"🤖 Criando chat_agent via LazyAgentFactory... — {now} ", flush=True)
     chat_agent = LazyAgentFactory.create_agent()
-    print("🟨 CONTAINER: Chat agent criado!")
-    
+    now = datetime.now().strftime("%H:%M:%S")
+    print(f"✅ Agente criado com sucesso — {now}", flush=True)
+
     context_enhancer = QueryContextEnhancer()
     query_processor = QueryProcessorService(chat_agent, context_enhancer)
-    print("🟨 CONTAINER: Query processor criado!")
+    now = datetime.now().strftime("%H:%M:%S")
+    print(f"⚙️ Query processor criado — {now}", flush=True)
     
     process_query_use_case = ProcessQueryUseCase(session_service, query_processor)
     session_management_use_case = SessionManagementUseCase(session_service)
@@ -69,16 +82,23 @@ def get_container() -> DIContainer:
 
 
 def create_configured_app():
-    print("🟨 CREATE_CONFIGURED_APP: Obtendo container...")
+    now = datetime.now().strftime("%H:%M:%S")
+    print(f"📦 Obtendo container...' — {now}", flush=True)
     container = get_container()
-    
-    print("🟨 CREATE_CONFIGURED_APP: Obtendo controllers...")
+
+    now = datetime.now().strftime("%H:%M:%S")
+    print(f"📦 Obtendo controllers... — {now}", flush=True)
     chat_controller = container.get(ChatController)
     session_controller = container.get(SessionController)
     export_controller = container.get(ExportController)
-    
-    print("🟨 CREATE_CONFIGURED_APP: Criando FastAPI app...")
+
+    now = datetime.now().strftime("%H:%M:%S")
+    print(f"🗃️ Criando FastAPI app... — {now}", flush=True)
     app = create_app(chat_controller, session_controller, export_controller)
-    
-    print("🟨 CREATE_CONFIGURED_APP: App criado com sucesso!")
+
+    print(f"✅ Aplicação criada com sucesso — {now}", flush=True)
+    if CONTAINER_VERBOSE:
+        now = datetime.now().strftime("%H:%M:%S")
+        print(f"ℹ️ Controllers e serviços registrados no container — {now}", flush=True)
+
     return app

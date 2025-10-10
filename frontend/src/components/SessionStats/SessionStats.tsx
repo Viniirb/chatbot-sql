@@ -4,7 +4,11 @@ import type { SessionStats as SessionStatsType } from '../../core/domain/entitie
 import { GeminiLogo } from './GeminiLogo';
 
 interface SessionStatsProps {
-  onGetStats: () => Promise<SessionStatsType | null>;
+  stats: SessionStatsType | null;
+  loading: boolean;
+  error: string | null;
+  onRefresh: () => void;
+  onGetStats: () => Promise<SessionStatsType>;
 }
 
 const getModelLogo = (model: string) => {
@@ -115,7 +119,12 @@ export const SessionStats: React.FC<SessionStatsProps> = ({ onGetStats }) => {
   };
 
   return (
-    <div className="bg-gray-900/90 backdrop-blur-xl p-5 rounded-2xl border border-purple-500/30 shadow-2xl shadow-purple-500/10">
+      <div className="bg-gray-900/90 backdrop-blur-xl p-5 rounded-2xl border border-purple-500/30 shadow-2xl shadow-purple-500/10">
+        {stats.message === 'Sessão sincronizada com sucesso' && (
+          <div className="mb-3 p-2 rounded-lg bg-green-900/30 border border-green-600 text-green-300 text-xs font-semibold flex items-center gap-2 animate-fade-in">
+            <span>✅ Sessão sincronizada com sucesso!</span>
+          </div>
+        )}
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-base font-bold text-gray-100 flex items-center gap-2">
           <Activity size={18} className="text-blue-400" />

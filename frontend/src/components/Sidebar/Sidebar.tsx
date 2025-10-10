@@ -113,7 +113,7 @@ export const Sidebar = ({
       throw new Error('Sessão não sincronizada com o backend. Envie pelo menos uma mensagem primeiro.');
     }
 
-    await exportSession(backendSessionId, format);
+    await exportSession(sessionToExport, format);
   }
 
   const renderSessionItem = (session: ChatSession) => (

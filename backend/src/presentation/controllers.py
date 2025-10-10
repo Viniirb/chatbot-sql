@@ -12,12 +12,14 @@ from ..application.interfaces import (
 )
 from ..application.use_cases import ProcessQueryRequest
 from ..domain.export_entities import ExportFormat
+from datetime import datetime
 
 
 class QueryRequest(BaseModel):
     query: Optional[str] = None
     prompt: Optional[str] = None
     session_id: Optional[str] = None
+    client_message_id: Optional[str] = None
 
 
 class TitleRequest(BaseModel):
@@ -41,13 +43,14 @@ class SessionStatsUpdateRequest(BaseModel):
 
 class ExportRequest(BaseModel):
     format: str
+    session: Optional[dict] = None
 
 
 class ChatController:
     def __init__(self, process_query_use_case: IProcessQueryUseCase):
         self._process_query_use_case = process_query_use_case
 
-    async def process_query(self, request: QueryRequest) -> JSONResponse:
+    async def process_query(self, request: QueryRequest, request_id: Optional[str] = None) -> JSONResponse:
         query_text = request.prompt or request.query
         
         if not query_text:
@@ -60,10 +63,12 @@ class ChatController:
         
         use_case_request = ProcessQueryRequest(
             query=query_text.strip(),
-            session_id=request.session_id or ""
+            session_id=request.session_id or "",
+            request_id=request_id,
+            client_message_id=request.client_message_id
         )
         
-        response = await self._process_query_use_case.execute(use_case_request)
+    response = await self._process_query_use_case.execute(use_case_request)
         
         if not response.success:
             error_code = response.error_code or "GENERIC_ERROR"
@@ -154,7 +159,11 @@ class ExportController:
     def __init__(self, export_use_case: IExportSessionUseCase):
         self._export_use_case = export_use_case
 
-    def export_session(self, session_id: str, request: ExportRequest) -> JSONResponse:
+    def export_session(self, session_id: str, request: ExportRequest):
+        now = datetime.now().strftime("%H:%M:%S")
+        has_payload = bool(request.session)
+        payload_id = request.session.get('id') if has_payload and isinstance(request.session, dict) else None
+        print(f"📤 EXPORT_REQUEST session_id={session_id} format={request.format} payload_present={has_payload} payload_id={payload_id} — {now} — DEBUG", flush=True)
         try:
             export_format = ExportFormat(request.format.lower())
         except ValueError:
@@ -162,19 +171,10 @@ class ExportController:
                 status_code=400,
                 detail=f"Formato inválido. Formatos válidos: pdf, json, txt"
             )
-        
         try:
-            result = self._export_use_case.execute(session_id, export_format)
-            
-            response_data = {
-                "success": True,
-                "filename": result.filename,
-                "filepath": result.filepath,
-                "download_url": f"/downloads/exports/{result.filename}" if result.filepath else None,
-                "message": "Exportação realizada com sucesso"
-            }
-            
-            return JSONResponse(content=response_data)
+            result = self._export_use_case.execute(session_id, export_format, session_payload=request.session)
+            headers = {"Content-Disposition": f'attachment; filename="{result.filename}"'}
+            return Response(content=result.content, media_type=result.content_type, headers=headers)
         except ValueError as e:
             raise HTTPException(status_code=404, detail=str(e))
         except Exception as e:
@@ -199,11 +199,14 @@ def create_app(
         
         timestamp = datetime.now().strftime("%H:%M:%S")
         status_emoji = "✅" if 200 <= response.status_code < 300 else "❌"
-        print(f"{status_emoji} [{timestamp}] {request.method} {request.url.path} - {response.status_code}")
+        print(f"{status_emoji} {request.method} {request.url.path} - {response.status_code} - {timestamp}")
         
         return response
 
-    origins = ["http://localhost:5173"]
+    origins = ["http://localhost:5173", "http://127.0.0.1:5173"]
+    @app.post("/sessions/{session_id}/sync")
+    def sync_session(session_id: str, request: dict):
+        print(f"SYNC PAYLOAD: {request}", flush=True)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=origins,
@@ -228,21 +231,27 @@ def create_app(
             "dbStatus": "connected"
         })
 
+    from fastapi import Request
+
     @app.post("/ask")
-    async def ask_agent(request: QueryRequest):
+    async def ask_agent(body: QueryRequest, fastapi_request: Request):
         import sys
-        print("\n" + "🟥"*35, flush=True)
         print("🔴🔴🔴 ROTA /ask CHAMADA! 🔴🔴🔴", flush=True)
-        print(f"Request: {request}", flush=True)
-        print("🟥"*35 + "\n", flush=True)
+        print(f"Request: {body}", flush=True)
+        # Read optional client-provided request id from headers so we can
+        # correlate/cancel long-running work later
+        client_req_id = None
+        try:
+            client_req_id = fastapi_request.headers.get('x-request-id') or fastapi_request.headers.get('X-Request-ID')
+        except Exception:
+            client_req_id = None
         sys.stdout.flush()
         
-        result = await chat_controller.process_query(request)
+        # Attach client-provided request id to the ProcessQueryRequest
+        result = await chat_controller.process_query(body, client_req_id)
         
-        print("\n" + "🟩"*35, flush=True)
         print("🟢🟢🟢 ROTA /ask RETORNANDO! 🟢🟢🟢", flush=True)
         print(f"Result type: {type(result)}", flush=True)
-        print("🟩"*35 + "\n", flush=True)
         sys.stdout.flush()
         
         return result
@@ -267,6 +276,65 @@ def create_app(
     def export_session(session_id: str, request: ExportRequest):
         return export_controller.export_session(session_id, request)
 
+    @app.post("/sessions/{session_id}/sync")
+    def sync_session(session_id: str, request: dict):
+        """
+        Recebe payload completo da sessão do frontend e atualiza/cria sessão interna.
+        Espera um dict com pelo menos: id, messages, createdAt, updatedAt, title, etc.
+        """
+        from ..domain.entities import Session, SessionId, Message
+        from datetime import datetime
+        session_service = session_controller._session_management_use_case._session_service
+        # Tenta buscar sessão existente
+        session = session_service.get_session(session_id)
+        # Se não existe, cria nova
+        if not session:
+            session = Session(SessionId(session_id), title=request.get('title'))
+        else:
+            session.title = request.get('title', session.title)
+        session.created_at = datetime.fromisoformat(request.get('createdAt')) if request.get('createdAt') else session.created_at
+        session.updated_at = datetime.fromisoformat(request.get('updatedAt')) if request.get('updatedAt') else session.updated_at
+        # Atualiza mensagens
+        messages = request.get('messages', [])
+        session._message_history = []
+        for msg in messages:
+            m = Message(
+                role=msg.get('role'),
+                content=msg.get('content'),
+                timestamp=datetime.fromisoformat(msg.get('timestamp')) if msg.get('timestamp') else datetime.now(),
+                metadata=msg.get('metadata', {})
+            )
+            session._message_history.append(m)
+        # Atualiza stats (client should not blindly overwrite server query count)
+        session.stats.message_count = len(session._message_history)
+        client_query_count = request.get('queryCount', None)
+        if client_query_count is not None:
+            try:
+                client_q = int(client_query_count)
+                # Keep the highest value to avoid client overwriting server-side counts
+                session.stats.query_count = max(session.stats.query_count, client_q)
+            except Exception:
+                # ignore invalid client-provided value
+                pass
+        # If session was newly created and server has zero, permit client-provided value
+        if not session_service.get_session(session_id) and client_query_count is not None:
+            try:
+                session.stats.query_count = int(client_query_count)
+            except Exception:
+                pass
+        session.stats.updated_at = datetime.now()
+        # Salva sessão
+        session_service.save_session(session)
+        # Retorna stats atualizadas
+        return JSONResponse({
+                    "session_id": session.session_id.value,
+                    "message_count": session.stats.message_count,
+                    "query_count": session.stats.query_count,
+                    "created_at": session.created_at.isoformat(),
+                    "updated_at": session.updated_at.isoformat(),
+                    "status": "synced"
+                })
+
     @app.post("/generate-title")
     async def generate_title(request: TitleRequest):
         try:
@@ -280,5 +348,14 @@ def create_app(
     @app.get("/")
     def root():
         return {"message": "API do Chatbot SQL está no ar!"}
+
+    @app.post('/requests/{request_id}/cancel')
+    async def cancel_request(request_id: str):
+        from ..infrastructure.execution_context import set_cancel
+        try:
+            set_cancel(request_id)
+            return JSONResponse({"status": "cancellation_requested", "request_id": request_id})
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to cancel request: {e}")
 
     return app

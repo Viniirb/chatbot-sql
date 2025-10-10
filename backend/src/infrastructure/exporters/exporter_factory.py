@@ -5,6 +5,8 @@ from ...domain.export_entities import IExporter, ExportFormat
 from .json_exporter import JsonExporter
 from .txt_exporter import TxtExporter
 from .pdf_exporter import PdfExporter
+import uuid
+from datetime import datetime
 
 
 class ExporterFactory:
@@ -30,3 +32,14 @@ class ExporterFactory:
             f.write(content)
         
         return filepath
+
+    @staticmethod
+    def build_filename(kind: str, extension: str) -> str:
+        """Build a deterministic but unique filename.
+
+        Example: documentoPDF_20251010_160255_a1b2c3.pdf
+        """
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        short = uuid.uuid4().hex[:6]
+        kind_sanitized = ''.join(c for c in kind if c.isalnum() or c in ('_', '-'))
+        return f"{kind_sanitized}_{ts}_{short}.{extension}"

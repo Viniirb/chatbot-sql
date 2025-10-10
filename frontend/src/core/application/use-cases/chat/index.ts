@@ -77,8 +77,9 @@ export class SendMessageUseCase {
   async execute(
     sessionId: string,
     content: string,
-    signal?: AbortSignal
-  ): Promise<{ botMessage: Message }> {
+    signal?: AbortSignal,
+    clientMessageId?: string
+  ): Promise<{ botMessage: Message; requestId?: string }> {
     const backendMapping = this.storageRepository.getBackendSessionMapping();
     const backendSessionId = backendMapping[sessionId];
     
@@ -86,11 +87,12 @@ export class SendMessageUseCase {
     const currentSession = sessions[sessionId];
     const conversationHistory = currentSession?.messages || [];
 
-    const response = await this.chatRepository.sendMessage(
+    const response = await this.chat_repository.sendMessage(
       content,
       conversationHistory,
       backendSessionId,
-      signal
+      signal,
+      clientMessageId
     );
 
     const botMessage: Message = {
@@ -100,7 +102,7 @@ export class SendMessageUseCase {
       timestamp: new Date()
     };
 
-    return { botMessage };
+    return { botMessage, requestId: response.requestId };
   }
 }
 

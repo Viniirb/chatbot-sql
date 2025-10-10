@@ -3,7 +3,8 @@ import type { ChatSession, SessionStats, Message } from '../entities';
 export interface IChatRepository {
   createSession(): Promise<string>;
   getSessionStats(sessionId: string): Promise<SessionStats | null>;
-  sendMessage(query: string, conversationHistory: Message[], sessionId?: string, signal?: AbortSignal): Promise<string>;
+  sendMessage(query: string, conversationHistory: Message[], sessionId?: string, signal?: AbortSignal, clientMessageId?: string): Promise<{ answer: string; requestId: string }>;
+  cancelRequest(requestId: string): Promise<boolean>;
   generateTitle(prompt: string): Promise<string>;
 }
 

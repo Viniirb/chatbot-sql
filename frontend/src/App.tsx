@@ -89,11 +89,13 @@ export default function App() {
         <main className="flex-1 overflow-y-auto w-full max-w-4xl mx-auto custom-scroll">
           <div className="p-4 space-y-6" ref={chatBoxRef}>
             <AnimatePresence>
-              {activeSession?.messages.map((msg, index) => (
-                <Suspense key={`${activeSession.id}-${index}`} fallback={<div className="h-16 animate-pulse bg-gray-800 rounded-lg" />}>
-                  <MessageBubble message={msg} onRetry={retryMessage} />
-                </Suspense>
-              ))}
+              {activeSession?.messages.map((msg, index) => {
+                return (
+                  <Suspense key={`${activeSession.id}-${index}`} fallback={<div className="h-16 animate-pulse bg-gray-800 rounded-lg" />}>
+                    <MessageBubble message={msg} onRetry={retryMessage} />
+                  </Suspense>
+                );
+              })}
             </AnimatePresence>
             {loading && (
               <div className="flex items-start space-x-4 animate-fade-in-up">

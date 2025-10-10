@@ -70,7 +70,7 @@ class Message:
 
 
 class Session:
-    def __init__(self, session_id: SessionId):
+    def __init__(self, session_id: SessionId, title: Optional[str] = None):
         self._session_id = session_id
         self._created_at = datetime.now()
         self._last_activity = datetime.now()
@@ -78,6 +78,14 @@ class Session:
         self._query_results: List[QueryResult] = []
         self._active_dataset: Optional[QueryResult] = None
         self._stats: SessionStats = SessionStats()
+        self._title: Optional[str] = title
+    @property
+    def title(self) -> Optional[str]:
+        return self._title
+
+    @title.setter
+    def title(self, value: Optional[str]):
+        self._title = value
 
     @property
     def session_id(self) -> SessionId:
