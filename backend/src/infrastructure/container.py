@@ -7,7 +7,7 @@ from datetime import datetime
 from ..application.interfaces import IProcessQueryUseCase, ISessionManagementUseCase, ISessionService, IQueryProcessorService, IExportSessionUseCase
 from ..application.use_cases import ProcessQueryUseCase, SessionManagementUseCase
 from ..application.export_use_case import ExportSessionUseCase
-from ..infrastructure.services import SessionService, InMemorySessionRepository
+from .service.services import SessionService, InMemorySessionRepository
 from ..infrastructure.adapters import QueryProcessorService, QueryContextEnhancer
 from ..infrastructure.lazy_agent import LazyAgentFactory
 from ..presentation.controllers import ChatController, SessionController, ExportController, create_app

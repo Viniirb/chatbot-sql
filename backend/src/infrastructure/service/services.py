@@ -2,8 +2,8 @@ import uuid
 from typing import Dict, Optional, List
 from threading import Lock
 
-from ..domain.entities import Session, SessionId, ISessionRepository
-from ..application.interfaces import ISessionService
+from ...domain.entities import Session, SessionId, ISessionRepository
+from ...application.interfaces import ISessionService
 
 
 class InMemorySessionRepository(ISessionRepository):

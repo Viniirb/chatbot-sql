@@ -3,6 +3,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel, Field
+from fastapi import FastAPI, HTTPException, Depends
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import JSONResponse, Response
+from pydantic import BaseModel, Field
 from typing import Optional
 import os
 
@@ -10,6 +15,7 @@ from ..application.interfaces import (
     IProcessQueryUseCase, ISessionManagementUseCase, IExportSessionUseCase,
     UpdateSessionStatsRequest
 )
+from ..infrastructure.service.schema_service import SchemaService
 from ..application.use_cases import ProcessQueryRequest
 from ..domain.export_entities import ExportFormat
 from datetime import datetime
@@ -47,32 +53,27 @@ class ExportRequest(BaseModel):
 
 
 class ChatController:
-    def __init__(self, process_query_use_case: IProcessQueryUseCase):
+    def __init__(self, process_query_use_case: IProcessQueryUseCase, schema_service: SchemaService = None):
         self._process_query_use_case = process_query_use_case
+        self._schema_service = schema_service or SchemaService()
 
     async def process_query(self, request: QueryRequest, request_id: Optional[str] = None) -> JSONResponse:
         query_text = request.prompt or request.query
-        
         if not query_text:
             raise HTTPException(status_code=400, detail="Campo 'query' ou 'prompt' é obrigatório")
-        
         print(f"💬 {query_text[:80]}..." if len(query_text) > 80 else f"💬 {query_text}")
-        
         if query_text.strip().startswith(("Assistente:", "Assistant:")):
             raise HTTPException(status_code=400, detail="Mensagem inválida: não envie mensagens do assistente")
-        
         use_case_request = ProcessQueryRequest(
             query=query_text.strip(),
             session_id=request.session_id or "",
             request_id=request_id,
             client_message_id=request.client_message_id
         )
-        
-    response = await self._process_query_use_case.execute(use_case_request)
-        
+        schema_analysis = self._schema_service.get_schema_analysis(force_refresh=False)
+        response = await self._process_query_use_case.execute(use_case_request)
         if not response.success:
             error_code = response.error_code or "GENERIC_ERROR"
-            
             if error_code in ["QUOTA_EXCEEDED", "RATE_LIMIT", "RESOURCE_EXHAUSTED"]:
                 status_code = 429
             elif error_code in ["API_KEY_INVALID", "BILLING_NOT_ENABLED"]:
@@ -81,19 +82,19 @@ class ChatController:
                 status_code = 504
             else:
                 status_code = 500
-            
             raise HTTPException(status_code=status_code, detail=response.__dict__)
-        
         return JSONResponse({
             "answer": response.data,
             "session_id": response.session_id,
-            "context_used": response.context_used
+            "context_used": response.context_used,
+            "schema_analysis": schema_analysis
         })
 
 
 class SessionController:
-    def __init__(self, session_management_use_case: ISessionManagementUseCase):
+    def __init__(self, session_management_use_case: ISessionManagementUseCase, schema_service: SchemaService = None):
         self._session_management_use_case = session_management_use_case
+        self._schema_service = schema_service or SchemaService()
 
     def create_session(self) -> JSONResponse:
         response = self._session_management_use_case.create_session()
@@ -104,14 +105,13 @@ class SessionController:
 
     def get_session_stats(self, session_id: str) -> JSONResponse:
         response = self._session_management_use_case.get_session_stats(session_id)
-        
         agent_info = {
             "model": "gemini-2.5-flash-lite",
             "temperature": 0.2,
             "max_tokens": 2048,
             "provider": "Google Gemini API"
         }
-        
+        schema_analysis = self._schema_service.get_schema_analysis(force_refresh=False)
         if not response:
             new_session = self._session_management_use_case.create_session()
             return JSONResponse({
@@ -121,23 +121,20 @@ class SessionController:
                 "created_at": new_session.created_at,
                 "session_exists": True,
                 "agent": agent_info,
-                "message": "Nova sessão criada automaticamente"
+                "message": "Nova sessão criada automaticamente",
+                "schema_analysis": schema_analysis
             }, status_code=200)
-        
-        return JSONResponse({**response.__dict__, "session_exists": True, "agent": agent_info})
+        return JSONResponse({**response.__dict__, "session_exists": True, "agent": agent_info, "schema_analysis": schema_analysis})
     
     def update_session_stats(self, session_id: str, request: SessionStatsUpdateRequest) -> JSONResponse:
         """Atualiza as estatísticas de uma sessão"""
         try:
-            # Converte o request do Pydantic para o formato do use case
             use_case_request = UpdateSessionStatsRequest(
                 message_count=request.messageCount,
                 query_count=request.queryCount,
                 timestamp=request.timestamp
             )
-            
             response = self._session_management_use_case.update_session_stats(session_id, use_case_request)
-            
             return JSONResponse({
                 "sessionId": response.session_id,
                 "messageCount": response.message_count,
@@ -156,14 +153,16 @@ class SessionController:
 
 
 class ExportController:
-    def __init__(self, export_use_case: IExportSessionUseCase):
+    def __init__(self, export_use_case: IExportSessionUseCase, schema_service: SchemaService = None):
         self._export_use_case = export_use_case
+        self._schema_service = schema_service or SchemaService()
 
     def export_session(self, session_id: str, request: ExportRequest):
         now = datetime.now().strftime("%H:%M:%S")
         has_payload = bool(request.session)
         payload_id = request.session.get('id') if has_payload and isinstance(request.session, dict) else None
         print(f"📤 EXPORT_REQUEST session_id={session_id} format={request.format} payload_present={has_payload} payload_id={payload_id} — {now} — DEBUG", flush=True)
+        schema_analysis = self._schema_service.get_schema_analysis(force_refresh=False)
         try:
             export_format = ExportFormat(request.format.lower())
         except ValueError:
@@ -181,7 +180,7 @@ class ExportController:
             raise HTTPException(status_code=500, detail=f"Erro ao exportar sessão: {str(e)}")
 
 
-def create_app(
+
     chat_controller: ChatController,
     session_controller: SessionController,
     export_controller: ExportController
@@ -238,8 +237,7 @@ def create_app(
         import sys
         print("🔴🔴🔴 ROTA /ask CHAMADA! 🔴🔴🔴", flush=True)
         print(f"Request: {body}", flush=True)
-        # Read optional client-provided request id from headers so we can
-        # correlate/cancel long-running work later
+        
         client_req_id = None
         try:
             client_req_id = fastapi_request.headers.get('x-request-id') or fastapi_request.headers.get('X-Request-ID')
@@ -247,7 +245,6 @@ def create_app(
             client_req_id = None
         sys.stdout.flush()
         
-        # Attach client-provided request id to the ProcessQueryRequest
         result = await chat_controller.process_query(body, client_req_id)
         
         print("🟢🟢🟢 ROTA /ask RETORNANDO! 🟢🟢🟢", flush=True)
@@ -285,16 +282,14 @@ def create_app(
         from ..domain.entities import Session, SessionId, Message
         from datetime import datetime
         session_service = session_controller._session_management_use_case._session_service
-        # Tenta buscar sessão existente
         session = session_service.get_session(session_id)
-        # Se não existe, cria nova
         if not session:
             session = Session(SessionId(session_id), title=request.get('title'))
         else:
             session.title = request.get('title', session.title)
         session.created_at = datetime.fromisoformat(request.get('createdAt')) if request.get('createdAt') else session.created_at
         session.updated_at = datetime.fromisoformat(request.get('updatedAt')) if request.get('updatedAt') else session.updated_at
-        # Atualiza mensagens
+        
         messages = request.get('messages', [])
         session._message_history = []
         for msg in messages:
@@ -305,27 +300,22 @@ def create_app(
                 metadata=msg.get('metadata', {})
             )
             session._message_history.append(m)
-        # Atualiza stats (client should not blindly overwrite server query count)
         session.stats.message_count = len(session._message_history)
         client_query_count = request.get('queryCount', None)
         if client_query_count is not None:
             try:
                 client_q = int(client_query_count)
-                # Keep the highest value to avoid client overwriting server-side counts
                 session.stats.query_count = max(session.stats.query_count, client_q)
             except Exception:
-                # ignore invalid client-provided value
                 pass
-        # If session was newly created and server has zero, permit client-provided value
+        
         if not session_service.get_session(session_id) and client_query_count is not None:
             try:
                 session.stats.query_count = int(client_query_count)
             except Exception:
                 pass
         session.stats.updated_at = datetime.now()
-        # Salva sessão
         session_service.save_session(session)
-        # Retorna stats atualizadas
         return JSONResponse({
                     "session_id": session.session_id.value,
                     "message_count": session.stats.message_count,
@@ -358,4 +348,5 @@ def create_app(
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to cancel request: {e}")
 
+    return app
     return app

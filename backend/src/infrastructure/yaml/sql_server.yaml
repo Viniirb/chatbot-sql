@@ -1,0 +1,33 @@
+# sql_server.yaml
+# Configuração para SQL Server
+
+database_type: "SQL Server"
+dialect: "T-SQL"
+
+syntax_rules:
+  limit: "TOP N (antes das colunas)"
+  string_quotes: "aspas simples"
+  identifier_quotes: "colchetes [table]"
+  date_format: "YYYY-MM-DD"
+
+system_prompt_template: |
+  Você é um assistente especializado em {database_type}.
+  
+  REGRAS DE SINTAXE:
+  - Use {syntax_rules.limit} para limitar resultados
+  - Datas no formato {syntax_rules.date_format}
+  - Identificadores com {syntax_rules.identifier_quotes}
+  
+  QUIRKS ESPECÍFICOS:
+  {quirks}
+
+quirks:
+  - "GETDATE() para data atual, não NOW()"
+  - "LEN() para tamanho de string, não LENGTH()"
+  - "Concatenação com + não ||"
+
+common_functions:
+  current_date: "GETDATE()"
+  string_length: "LEN(column)"
+  substring: "SUBSTRING(column, start, length)"
+  concat: "column1 + column2"

@@ -28,7 +28,7 @@ class LazyLlamaIndexChatAgent(IChatAgent):
         warnings.filterwarnings("ignore", category=RuntimeWarning, message=".*coroutine.*was never awaited")
         warnings.filterwarnings("ignore", message=".*Task.*was destroyed but it is pending")
 
-        # Limita o contexto para evitar erro de tokens
+        
         if context_messages and isinstance(context_messages, list):
             context_messages = context_messages[-8:]  # pega as 8 últimas mensagens
             context_str = "\n".join([
@@ -134,15 +134,13 @@ class LazyLlamaIndexChatAgent(IChatAgent):
                 "Priorize mostrar os dados diretamente quando o pedido for genérico."
             )
         )
-        # Attach SQLAlchemy event listener to the engine so we can increment
-        # the session query counter when the agent actually runs SQL. Use the
-        # execution_context helpers for concurrency-safe lookup.
+        
         try:
             from sqlalchemy import event
             from datetime import datetime
             from .execution_context import get_current
 
-            # Attempt to record request/session for this engine at creation time
+            
             try:
                 sess, reqid = get_current()
                 if reqid:
