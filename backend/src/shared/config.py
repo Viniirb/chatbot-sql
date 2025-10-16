@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from typing import Optional
 
 
 @dataclass
@@ -7,7 +6,7 @@ class DatabaseConfig:
     url: str
 
 
-@dataclass 
+@dataclass
 class GoogleAIConfig:
     api_key: str
     model_name: str = "gemini-2.5-flash-lite"

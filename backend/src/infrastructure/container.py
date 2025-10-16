@@ -4,19 +4,29 @@ import os
 import logging
 from datetime import datetime
 
-from ..application.interfaces import IProcessQueryUseCase, ISessionManagementUseCase, ISessionService, IQueryProcessorService, IExportSessionUseCase
+from ..application.interfaces import (
+    IProcessQueryUseCase,
+    ISessionManagementUseCase,
+    ISessionService,
+    IQueryProcessorService,
+    IExportSessionUseCase,
+)
 from ..application.use_cases import ProcessQueryUseCase, SessionManagementUseCase
 from ..application.export_use_case import ExportSessionUseCase
 from .service.services import SessionService, InMemorySessionRepository
 from ..infrastructure.adapters import QueryProcessorService, QueryContextEnhancer
 from ..infrastructure.lazy_agent import LazyAgentFactory
-from ..presentation.controllers import ChatController, SessionController, ExportController, create_app
+from ..presentation.controllers import (
+    ChatController,
+    SessionController,
+    ExportController,
+    create_app,
+)
 
 logger = logging.getLogger(__name__)
 
 CONTAINER_VERBOSE = os.getenv("CONTAINER_VERBOSE", "0") in ("1", "true", "True")
 CONTAINER_EMOJI = os.getenv("CONTAINER_EMOJI", "0") in ("1", "true", "True")
-
 
 
 class DIContainer:
@@ -33,12 +43,11 @@ class DIContainer:
     def get(self, interface: type):
         if interface in self._singletons:
             return self._singletons[interface]
-        
+
         if interface in self._services:
             return self._services[interface]()
-        
-        raise ValueError(f"Service {interface} not registered")
 
+        raise ValueError(f"Service {interface} not registered")
 
 
 @lru_cache()
@@ -60,15 +69,15 @@ def get_container() -> DIContainer:
     query_processor = QueryProcessorService(chat_agent, context_enhancer)
     now = datetime.now().strftime("%H:%M:%S")
     print(f"⚙️ Query processor criado — {now}", flush=True)
-    
+
     process_query_use_case = ProcessQueryUseCase(session_service, query_processor)
     session_management_use_case = SessionManagementUseCase(session_service)
     export_session_use_case = ExportSessionUseCase(session_service)
-    
+
     chat_controller = ChatController(process_query_use_case)
     session_controller = SessionController(session_management_use_case)
     export_controller = ExportController(export_session_use_case)
-    
+
     container.register_singleton(ISessionService, session_service)
     container.register_singleton(IQueryProcessorService, query_processor)
     container.register_singleton(IProcessQueryUseCase, process_query_use_case)
@@ -77,7 +86,7 @@ def get_container() -> DIContainer:
     container.register_singleton(ChatController, chat_controller)
     container.register_singleton(SessionController, session_controller)
     container.register_singleton(ExportController, export_controller)
-    
+
     return container
 
 

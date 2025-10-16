@@ -206,6 +206,10 @@ celerybeat.pid
 .dmypy.json
 dmypy.json
 
+#ruff
+.ruff_cache/
+
+
 # Pyre type checker
 .pyre/
 
@@ -220,6 +224,10 @@ backend/cache/
 backend/temp/
 backend/.pytest_cache/
 backend/htmlcov/
+backend/cache/schema_cache.json
+backend/scripts/schema/schema_analysis.json
+backend/src/infrastructure/yaml/database_conventions.yaml
+backend/src/infrastructur/yaml/sql_server.yaml
 
 # ==========================================
 # ⚛️ FRONTEND (React + TypeScript + Vite)

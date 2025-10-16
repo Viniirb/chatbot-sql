@@ -15,30 +15,31 @@ class QueryType(Enum):
 @dataclass
 class SessionStats:
     """Estatísticas da sessão armazenadas em memória"""
+
     message_count: int = 0
     query_count: int = 0
     created_at: datetime = None
     updated_at: datetime = None
-    
+
     def __post_init__(self):
         if self.created_at is None:
             self.created_at = datetime.now()
         if self.updated_at is None:
             self.updated_at = datetime.now()
-    
+
     def update(self, message_count: int, query_count: int) -> None:
         """Atualiza as estatísticas"""
         self.message_count = message_count
         self.query_count = query_count
         self.updated_at = datetime.now()
-    
+
     def to_dict(self) -> Dict[str, Any]:
         """Converte para dicionário"""
         return {
             "message_count": self.message_count,
             "query_count": self.query_count,
             "created_at": self.created_at.isoformat(),
-            "updated_at": self.updated_at.isoformat()
+            "updated_at": self.updated_at.isoformat(),
         }
 
 
@@ -79,6 +80,7 @@ class Session:
         self._active_dataset: Optional[QueryResult] = None
         self._stats: SessionStats = SessionStats()
         self._title: Optional[str] = title
+
     @property
     def title(self) -> Optional[str]:
         return self._title
@@ -106,7 +108,7 @@ class Session:
     @property
     def active_dataset(self) -> Optional[QueryResult]:
         return self._active_dataset
-    
+
     @property
     def stats(self) -> SessionStats:
         return self._stats
@@ -119,12 +121,12 @@ class Session:
         self._query_results.append(query_result)
         if len(self._query_results) > 5:
             self._query_results.pop(0)
-        
+
         if query_result.row_count > 0:
             self._active_dataset = query_result
-        
+
         self._last_activity = datetime.now()
-    
+
     def update_stats(self, message_count: int, query_count: int) -> None:
         """Atualiza as estatísticas da sessão"""
         self._stats.update(message_count, query_count)
@@ -137,25 +139,27 @@ class Session:
     def get_context_summary(self) -> str:
         if not self._message_history:
             return ""
-        
+
         context_parts = []
         recent_messages = self._message_history[-6:]
-        
+
         for msg in recent_messages:
             role_emoji = "🙋‍♂️" if msg.role == "user" else "🤖"
-            content_preview = msg.content[:200] + "..." if len(msg.content) > 200 else msg.content
+            content_preview = (
+                msg.content[:200] + "..." if len(msg.content) > 200 else msg.content
+            )
             context_parts.append(f"{role_emoji} {content_preview}")
-        
+
         if self._active_dataset:
-            columns_preview = ', '.join(self._active_dataset.columns[:5])
+            columns_preview = ", ".join(self._active_dataset.columns[:5])
             if len(self._active_dataset.columns) > 5:
                 columns_preview += "..."
-            
+
             context_parts.append(
                 f"\n📊 DATASET ATIVO: {self._active_dataset.row_count} registros, "
                 f"colunas: {columns_preview}"
             )
-        
+
         return "\n".join(context_parts)
 
 

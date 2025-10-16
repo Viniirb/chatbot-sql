@@ -1,10 +1,11 @@
 from datetime import datetime
 from fpdf import FPDF
 from typing import List, Dict, Any
-import os
+
 
 class DataPdfExporter:
     """Gera PDFs com dados de consultas SQL (não relacionado a sessões de chat)"""
+
     @staticmethod
     def export(data: List[Dict[str, Any]], title: str = "Relatorio de Dados") -> bytes:
         pdf = FPDF()
@@ -39,31 +40,54 @@ class DataPdfExporter:
                 pdf.ln(3)
         pdf.ln(10)
         pdf.set_font("Arial", "I", 8)
-        pdf.cell(0, 6, "Documento gerado automaticamente pelo Chatbot SQL", ln=True, align="C")
-        output = bytes(pdf.output(dest='S').encode('latin1'))
+        pdf.cell(
+            0,
+            6,
+            "Documento gerado automaticamente pelo Chatbot SQL",
+            ln=True,
+            align="C",
+        )
+        output = bytes(pdf.output(dest="S").encode("latin1"))
         return output
+
     @staticmethod
     def get_content_type() -> str:
         return "application/pdf"
+
     @staticmethod
     def get_file_extension() -> str:
         return "pdf"
+
     @staticmethod
     def _sanitize_text(text: str) -> str:
         """Remove acentos e caracteres especiais para compatibilidade com fpdf"""
         replacements = {
-            'á': 'a', 'à': 'a', 'ã': 'a', 'â': 'a',
-            'é': 'e', 'ê': 'e',
-            'í': 'i',
-            'ó': 'o', 'õ': 'o', 'ô': 'o',
-            'ú': 'u', 'ü': 'u',
-            'ç': 'c',
-            'Á': 'A', 'À': 'A', 'Ã': 'A', 'Â': 'A',
-            'É': 'E', 'Ê': 'E',
-            'Í': 'I',
-            'Ó': 'O', 'Õ': 'O', 'Ô': 'O',
-            'Ú': 'U', 'Ü': 'U',
-            'Ç': 'C'
+            "á": "a",
+            "à": "a",
+            "ã": "a",
+            "â": "a",
+            "é": "e",
+            "ê": "e",
+            "í": "i",
+            "ó": "o",
+            "õ": "o",
+            "ô": "o",
+            "ú": "u",
+            "ü": "u",
+            "ç": "c",
+            "Á": "A",
+            "À": "A",
+            "Ã": "A",
+            "Â": "A",
+            "É": "E",
+            "Ê": "E",
+            "Í": "I",
+            "Ó": "O",
+            "Õ": "O",
+            "Ô": "O",
+            "Ú": "U",
+            "Ü": "U",
+            "Ç": "C",
         }
         for old, new in replacements.items():
             text = text.replace(old, new)

@@ -5,6 +5,7 @@ compact logging formatter, mutes noisy libraries, and disables Uvicorn
 access logs to avoid excessive lines while still showing warnings and
 exceptions with stack traces.
 """
+
 import os
 import sys
 import logging
@@ -28,16 +29,17 @@ def setup_logging() -> None:
     root.setLevel(logging.DEBUG)
     root.addHandler(handler)
 
-    logging.getLogger('httpx').setLevel(logging.WARNING)
-    logging.getLogger('google_genai').setLevel(logging.WARNING)
-    logging.getLogger('llama_index').setLevel(logging.WARNING)
-    logging.getLogger('asyncio').setLevel(logging.ERROR)
-    logging.getLogger('uvicorn.access').setLevel(logging.WARNING)
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("google_genai").setLevel(logging.WARNING)
+    logging.getLogger("llama_index").setLevel(logging.WARNING)
+    logging.getLogger("asyncio").setLevel(logging.ERROR)
+    logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
 
 
 if __name__ == "__main__":
     setup_logging()
     logger = logging.getLogger(__name__)
+
     def startup_print(msg: str) -> None:
         """Print a concise startup message (emoji + text) without logging metadata.
 
@@ -66,7 +68,9 @@ if __name__ == "__main__":
 
         if dev_reload:
             now = datetime.now().strftime("%H:%M:%S")
-            print(f"✅ Modo DEV_RELOAD ativo: hot-reload habilitado — {now}", flush=True)
+            print(
+                f"✅ Modo DEV_RELOAD ativo: hot-reload habilitado — {now}", flush=True
+            )
             uvicorn.run(
                 "main:app",
                 host="127.0.0.1",
@@ -99,5 +103,6 @@ if __name__ == "__main__":
         now = datetime.now().strftime("%H:%M:%S")
         print(f"💥 Servidor caiu: {str(e)} — {now} — ERROR", flush=True)
         import traceback
+
         traceback.print_exc()
         raise

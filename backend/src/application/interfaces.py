@@ -1,8 +1,8 @@
 from abc import ABC, abstractmethod
-from typing import Optional, List, Dict, Any
+from typing import Optional, Dict, Any
 from dataclasses import dataclass
 
-from ..domain.entities import Session, SessionId, QueryResult, Message
+from ..domain.entities import Session
 from ..domain.export_entities import ExportFormat
 
 
@@ -49,6 +49,7 @@ class SessionStatsResponse:
 @dataclass
 class UpdateSessionStatsRequest:
     """Request para atualizar estatísticas da sessão"""
+
     message_count: int
     query_count: int
     timestamp: str
@@ -57,6 +58,7 @@ class UpdateSessionStatsRequest:
 @dataclass
 class UpdateSessionStatsResponse:
     """Response da atualização de estatísticas"""
+
     session_id: str
     message_count: int
     query_count: int
@@ -78,9 +80,11 @@ class ISessionManagementUseCase(ABC):
     @abstractmethod
     def get_session_stats(self, session_id: str) -> Optional[SessionStatsResponse]:
         pass
-    
+
     @abstractmethod
-    def update_session_stats(self, session_id: str, request: UpdateSessionStatsRequest) -> UpdateSessionStatsResponse:
+    def update_session_stats(
+        self, session_id: str, request: UpdateSessionStatsRequest
+    ) -> UpdateSessionStatsResponse:
         pass
 
     @abstractmethod
@@ -90,7 +94,9 @@ class ISessionManagementUseCase(ABC):
 
 class IQueryProcessorService(ABC):
     @abstractmethod
-    async def process_query(self, query: str, session: Session, request_id: Optional[str] = None) -> str:
+    async def process_query(
+        self, query: str, session: Session, request_id: Optional[str] = None
+    ) -> str:
         pass
 
 
@@ -122,5 +128,10 @@ class ExportSessionResponse:
 
 class IExportSessionUseCase(ABC):
     @abstractmethod
-    def execute(self, session_id: str, format: ExportFormat, session_payload: Optional[dict] = None) -> ExportSessionResponse:
+    def execute(
+        self,
+        session_id: str,
+        format: ExportFormat,
+        session_payload: Optional[dict] = None,
+    ) -> ExportSessionResponse:
         pass

@@ -6,9 +6,9 @@ from ..sql_exporters.data_pdf_exporter import DataPdfExporter
 
 __all__ = [
     "JsonExporter",
-    "TxtExporter", 
+    "TxtExporter",
     "PdfExporter",
     "ExcelExporter",
     "ExporterFactory",
-    "DataPdfExporter"
+    "DataPdfExporter",
 ]

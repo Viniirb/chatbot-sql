@@ -1,13 +1,12 @@
 import threading
-import asyncio
 from contextvars import ContextVar
 from typing import Optional, Tuple
 
 # ContextVars are used for async execution paths; thread-local is used for
 # synchronous code executed in worker threads. Getters prefer ContextVar when
 # available, falling back to thread-local storage.
-_session_var: ContextVar[Optional[object]] = ContextVar('_session_var', default=None)
-_request_id_var: ContextVar[Optional[str]] = ContextVar('_request_id_var', default=None)
+_session_var: ContextVar[Optional[object]] = ContextVar("_session_var", default=None)
+_request_id_var: ContextVar[Optional[str]] = ContextVar("_request_id_var", default=None)
 
 _thread_local = threading.local()
 
@@ -16,13 +15,15 @@ _thread_local = threading.local()
 _registry_lock = threading.Lock()
 _registry = {}  # request_id -> { 'task': asyncio.Task | None, 'event': threading.Event }
 
+
 def register_task(request_id: str, task) -> None:
     with _registry_lock:
         entry = _registry.get(request_id)
         if not entry:
-            entry = {'task': None, 'event': threading.Event()}
+            entry = {"task": None, "event": threading.Event()}
             _registry[request_id] = entry
-        entry['task'] = task
+        entry["task"] = task
+
 
 def unregister_task(request_id: str) -> None:
     with _registry_lock:
@@ -32,22 +33,24 @@ def unregister_task(request_id: str) -> None:
             except Exception:
                 pass
 
+
 def set_cancel(request_id: str) -> None:
     with _registry_lock:
         entry = _registry.get(request_id)
         if not entry:
             # create a placeholder so future checks for cancellation will see it
-            entry = {'task': None, 'event': threading.Event()}
+            entry = {"task": None, "event": threading.Event()}
             _registry[request_id] = entry
         try:
-            entry['event'].set()
-            if entry.get('task') is not None:
+            entry["event"].set()
+            if entry.get("task") is not None:
                 try:
-                    entry['task'].cancel()
+                    entry["task"].cancel()
                 except Exception:
                     pass
         except Exception:
             pass
+
 
 def is_cancelled_current() -> bool:
     session, reqid = get_current()
@@ -57,15 +60,16 @@ def is_cancelled_current() -> bool:
         entry = _registry.get(reqid)
         if not entry:
             return False
-        return bool(entry['event'].is_set())
+        return bool(entry["event"].is_set())
+
 
 def get_cancel_event_for_request(request_id: str):
     with _registry_lock:
         entry = _registry.get(request_id)
         if not entry:
-            entry = {'task': None, 'event': threading.Event()}
+            entry = {"task": None, "event": threading.Event()}
             _registry[request_id] = entry
-        return entry['event']
+        return entry["event"]
 
 
 def set_for_context(session: object, request_id: str) -> Tuple[ContextVar, ContextVar]:
@@ -91,7 +95,7 @@ def set_for_thread(session: object, request_id: str) -> None:
 
 
 def clear_for_thread() -> None:
-    for attr in ('session', 'request_id'):
+    for attr in ("session", "request_id"):
         if hasattr(_thread_local, attr):
             try:
                 delattr(_thread_local, attr)
@@ -106,6 +110,6 @@ def get_current() -> Tuple[Optional[object], Optional[str]]:
     session = _session_var.get()
     if session is not None:
         return session, _request_id_var.get()
-    session = getattr(_thread_local, 'session', None)
-    request_id = getattr(_thread_local, 'request_id', None)
+    session = getattr(_thread_local, "session", None)
+    request_id = getattr(_thread_local, "request_id", None)
     return session, request_id

@@ -47,11 +47,11 @@ class SessionService(ISessionService):
         try:
             sid = SessionId(session_id)
             session = self._repository.find_by_id(sid)
-            
+
             if session and session.is_expired(self._session_timeout):
                 self._repository.delete(sid)
                 return None
-                
+
             return session
         except ValueError:
             return None

@@ -1,7 +1,6 @@
 from abc import ABC, abstractmethod
 from enum import Enum
 from dataclasses import dataclass
-from typing import BinaryIO
 
 from .entities import Session
 
