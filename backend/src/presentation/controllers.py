@@ -82,28 +82,72 @@ class ChatController:
             request_id=request_id,
             client_message_id=request.client_message_id,
         )
+
+        # By default return a quick preview and process the full agent work in background
+        # The full result will still be persisted by the use-case (sessions updated, etc.)
+        async def background_worker(req: ProcessQueryRequest):
+            try:
+                schema_analysis_bg = self._schema_service.get_schema_analysis(
+                    force_refresh=False
+                )
+                response_bg = await self._process_query_use_case.execute(req)
+                if not response_bg.success:
+                    logger = globals().get("logger")
+                    if logger:
+                        logger.warning(
+                            "Background processing failed for request %s: %s",
+                            req.request_id,
+                            response_bg.error_code,
+                        )
+                # Optionally: post-process or notify front-end via websockets/push
+            except Exception:
+                import logging as _logging
+
+                _logging.exception("Erro no processamento em background para request %s", req.request_id)
+
+        # Build a minimal preview response
+        preview_text = (query_text.strip()[:120] + "...") if len(query_text.strip()) > 120 else query_text.strip()
         schema_analysis = self._schema_service.get_schema_analysis(force_refresh=False)
-        response = await self._process_query_use_case.execute(use_case_request)
 
-        if not response.success:
-            error_code = response.error_code or "GENERIC_ERROR"
-            if error_code in ["QUOTA_EXCEEDED", "RATE_LIMIT", "RESOURCE_EXHAUSTED"]:
-                status_code = 429
-            elif error_code in ["API_KEY_INVALID", "BILLING_NOT_ENABLED"]:
-                status_code = 401
-            elif error_code == "TIMEOUT":
-                status_code = 504
-            else:
-                status_code = 500
-            raise HTTPException(status_code=status_code, detail=response.__dict__)
+        # Schedule background task — fire-and-forget
+        try:
+            import asyncio
 
+            asyncio.create_task(background_worker(use_case_request))
+        except Exception:
+            # If scheduling background task fails, fall back to synchronous execution
+            response = await self._process_query_use_case.execute(use_case_request)
+            if not response.success:
+                error_code = response.error_code or "GENERIC_ERROR"
+                if error_code in ["QUOTA_EXCEEDED", "RATE_LIMIT", "RESOURCE_EXHAUSTED"]:
+                    status_code = 429
+                elif error_code in ["API_KEY_INVALID", "BILLING_NOT_ENABLED"]:
+                    status_code = 401
+                elif error_code == "TIMEOUT":
+                    status_code = 504
+                else:
+                    status_code = 500
+                raise HTTPException(status_code=status_code, detail=response.__dict__)
+
+            return JSONResponse(
+                {
+                    "answer": response.data,
+                    "session_id": response.session_id,
+                    "context_used": response.context_used,
+                    "schema_analysis": schema_analysis,
+                }
+            )
+
+        # Return quick preview to client
         return JSONResponse(
             {
-                "answer": response.data,
-                "session_id": response.session_id,
-                "context_used": response.context_used,
+                "answer": f"(preview) {preview_text}",
+                "session_id": use_case_request.session_id,
+                "context_used": None,
                 "schema_analysis": schema_analysis,
-            }
+                "background_processing": True,
+            },
+            status_code=202,
         )
 
 
@@ -407,3 +451,12 @@ def setup_routes(
             )
 
     return app
+
+
+def create_app(
+    chat_controller: ChatController,
+    session_controller: SessionController,
+    export_controller: ExportController,
+) -> FastAPI:
+    """Compat shim: create_app usado pelo container."""
+    return setup_routes(chat_controller, session_controller, export_controller)

@@ -5,10 +5,10 @@ import { GeminiLogo } from './GeminiLogo';
 
 interface SessionStatsProps {
   stats: SessionStatsType | null;
-  loading: boolean;
-  error: string | null;
-  onRefresh: () => void;
-  onGetStats: () => Promise<SessionStatsType>;
+  loading?: boolean;
+  error?: string | null;
+  onRefresh?: () => void;
+  onGetStats: () => Promise<SessionStatsType | null>;
 }
 
 const getModelLogo = (model: string) => {

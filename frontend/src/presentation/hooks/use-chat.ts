@@ -180,8 +180,8 @@ export const useChat = (): UseChatReturn => {
         const newTitle = await generateTitleUseCase.execute(content);
         updateSession(activeSessionId, { title: newTitle });
       }
-    } catch (error: unknown) {
-      const err = error as ApiError;
+    } catch (rawError: unknown) {
+      const err = rawError as ApiError;
       // Detecta erro de rede/fetch
       if (err.message === 'REQUEST_ABORTED') {
         // Marca a mensagem local como abortada para permitir reenvio
@@ -221,7 +221,7 @@ export const useChat = (): UseChatReturn => {
         } catch {
           // ignore
         }
-      } else if (error instanceof TypeError || err.message?.includes('Failed to fetch') || err.message?.includes('NetworkError')) {
+  } else if (rawError instanceof TypeError || err.message?.includes('Failed to fetch') || err.message?.includes('NetworkError')) {
         // Erro de conexão
         const networkError: ApiError = {
           type: 'NETWORK_ERROR',
@@ -338,7 +338,8 @@ export const useChat = (): UseChatReturn => {
       abortControllerRef.current = null;
       currentRequestIdRef.current = null;
     }
-  }, [activeSessionId, sessions, sendMessageUseCase, generateTitleUseCase, updateSession, updateSessionUseCase]);
+  }, [activeSessionId, sessions, sendMessageUseCase, generateTitleUseCase, updateSession, updateSessionUseCase, container]);
+
 
   const retryMessage = useCallback(async (messageId: string) => {
     if (!activeSessionId || loading) return;
@@ -352,16 +353,15 @@ export const useChat = (): UseChatReturn => {
     setLoading(true);
     abortControllerRef.current = new AbortController();
 
-    // Immediately clear the error from the message so the UI returns to
-    // the normal (purple) user bubble while the retry is in progress.
     setSessions(prev => {
       const updated = prev.map(session => {
         if (session.id === activeSessionId) {
           const messagesCleared = session.messages.map(msg => {
             if (msg.id === messageId) {
+              // eslint-disable-next-line @typescript-eslint/no-unused-vars
               const { error, ...rest } = msg;
               const newMetadata = { ...(rest.metadata || {}), retrying: true };
-              return { ...rest, metadata: newMetadata } as any;
+              return { ...rest, metadata: newMetadata } as Message;
             }
             return msg;
           });
@@ -514,7 +514,7 @@ export const useChat = (): UseChatReturn => {
                 updatedMessages[i] = {
                   ...m,
                   error: { message: 'Requisição cancelada pelo usuário', canRetry: true }
-                } as any;
+                } as Message;
                 break;
               }
             }
@@ -537,12 +537,12 @@ export const useChat = (): UseChatReturn => {
         if (currentRequestIdRef.current) {
           chatRepo.cancelRequest(currentRequestIdRef.current).catch(() => {});
         }
-      } catch (e) {
+      } catch {
         // ignore
       }
       currentRequestIdRef.current = null;
     }
-  }, []);
+  }, [activeSessionId, container, updateSessionUseCase]);
 
   const getActiveSessionStats = useCallback(async (): Promise<SessionStats | null> => {
     if (!activeSessionId) return null;

@@ -614,7 +614,7 @@ class QueryProcessorService(IQueryProcessorService):
 class LlamaIndexAgentFactory:
     @staticmethod
     def create_agent() -> IChatAgent:
-        db_uri = os.getenv("DATABASE_URL")
+        db_uri = os.getenv("DATABASE_URL_ALTERNATIVE")
         google_api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
 
         if not db_uri or not google_api_key:

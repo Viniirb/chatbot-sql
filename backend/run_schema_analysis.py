@@ -4,6 +4,7 @@ import os
 from dotenv import load_dotenv
 from datetime import datetime
 from sqlalchemy import create_engine
+import json
 from src.infrastructure.analyze.schema_analyzer import SchemaAnalyzer  # type: ignore
 from src.infrastructure.cache import Cache  # type: ignore
 
@@ -29,8 +30,41 @@ if __name__ == "__main__":
         print(
             f"⚠️ Observação: uso de cache ativo; reexecução atualizará o cache - {timestamp}"
         )
-        analysis = analyzer.analyze_full_database(force_refresh=False)
-        analyzer.export_analysis(analysis, output_path="schema_analysis.json")
+
+        # Permite forçar refresh via variável de ambiente (ex: FORCE_REFRESH=1)
+        force_refresh = os.getenv("FORCE_REFRESH", "0").lower() in ("1", "true", "yes")
+
+        # Path do JSON exportado (possível fonte alternativa de análise)
+        output_dir = ROOT / "scripts" / "schema"
+        output_dir.mkdir(parents=True, exist_ok=True)
+        output_path = output_dir / "schema_analysis.json"
+
+        analysis = None
+        if output_path.exists() and not force_refresh:
+            try:
+                with open(output_path, "r", encoding="utf-8") as f:
+                    exported = json.load(f)
+                exported_db = (
+                    exported.get("database_info", {}).get("database_name")
+                    if isinstance(exported, dict)
+                    else None
+                )
+                if not exported_db or exported_db == db_name:
+                    analysis = exported
+                    print(
+                        f"♻️ Carregado análise a partir de {str(output_path)}; pulando reanálise (FORCE_REFRESH={force_refresh}) - {timestamp}"
+                    )
+                else:
+                    print(
+                        f"ℹ️ Arquivo exportado pertence ao DB '{exported_db}', não será usado para '{db_name}' - executando análise"
+                    )
+            except Exception as e:
+                print(f"⚠️ Falha ao carregar {str(output_path)}; irá executar a análise completa: {e}")
+
+        if analysis is None:
+            analysis = analyzer.analyze_full_database(force_refresh=force_refresh)
+            # Salva export apenas quando fizemos a análise agora
+            analyzer.export_analysis(analysis, output_path=str(output_path))
 
         try:
             cache_path = getattr(cache, "persist_path", None)
@@ -44,7 +78,7 @@ if __name__ == "__main__":
 
         print(f"✅ Análise concluída. - {timestamp}")
         print(f"💾 Cache salvo em: {cache_path_str} - {timestamp}")
-        print(f"📄 Análise exportada para: schema_analysis.json - {timestamp}")
+        print(f"📄 Análise exportada para: {str(output_path)} - {timestamp}")
         print(f"📄 Quality: {analysis.get('quality_score', 0)}/100 - {timestamp}")
         print(f"📊 Tabelas analisadas: {len(analysis.get('tables', {}))} - {timestamp}")
         print(

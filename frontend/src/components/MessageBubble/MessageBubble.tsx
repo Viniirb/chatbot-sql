@@ -18,7 +18,7 @@ export const MessageBubble = ({ message, onRetry }: Props) => {
   type MessageError = NonNullable<Message['error']>;
   const localError: MessageError | null = (message.error ?? null) as MessageError | null;
   const hasError = !!localError;
-  const isRetrying = !!(message.metadata && (message.metadata as any).retrying);
+  const isRetrying = !!(message.metadata && (message.metadata as Record<string, unknown>)['retrying']);
   const [timeRemaining, setTimeRemaining] = useState<number>(0);
   const [canRetryNow, setCanRetryNow] = useState(true);
 
