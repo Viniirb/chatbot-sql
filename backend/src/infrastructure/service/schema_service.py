@@ -11,7 +11,7 @@ class SchemaService:
 
     def __init__(self, database_url=None):
         self.database_url = database_url or os.getenv(
-            "DATABASE_URL",
+            "DATABASE_URL_ALTERNATIVE",
             "mssql+pyodbc://sa:your_password_here@localhost:1433/chatbot_db?driver=ODBC+Driver+17+for+SQL+Server",
         )
         self.engine = create_engine(self.database_url)

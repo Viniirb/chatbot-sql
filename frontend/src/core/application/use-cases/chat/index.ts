@@ -87,7 +87,7 @@ export class SendMessageUseCase {
     const currentSession = sessions[sessionId];
     const conversationHistory = currentSession?.messages || [];
 
-    const response = await this.chat_repository.sendMessage(
+    const response = await this.chatRepository.sendMessage(
       content,
       conversationHistory,
       backendSessionId,
@@ -95,14 +95,27 @@ export class SendMessageUseCase {
       clientMessageId
     );
 
+    // Response pode ser string ou um objeto { answer: string, requestId?: string }
+    let answerText: string;
+    let requestId: string | undefined;
+    if (typeof response === 'string') {
+      answerText = response;
+    } else if (response && typeof response === 'object') {
+      // tenta extrair answer/requestId com segurança
+      answerText = (response as { answer?: string }).answer || 'Desculpe, não encontrei resultados para sua pergunta.';
+      requestId = (response as { requestId?: string }).requestId;
+    } else {
+      answerText = 'Desculpe, não encontrei resultados para sua pergunta.';
+    }
+
     const botMessage: Message = {
       id: uuidv4(),
-      content: response || 'Desculpe, não encontrei resultados para sua pergunta.',
+      content: answerText,
       role: 'assistant',
       timestamp: new Date()
     };
 
-    return { botMessage, requestId: response.requestId };
+    return { botMessage, requestId };
   }
 }
 

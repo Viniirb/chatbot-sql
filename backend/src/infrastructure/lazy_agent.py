@@ -3,6 +3,7 @@ import asyncio
 import concurrent.futures
 from typing import Dict
 import logging
+import time
 import warnings
 from llama_index.core import Settings, SQLDatabase
 from llama_index.llms.google_genai import GoogleGenAI
@@ -23,6 +24,8 @@ class LazyLlamaIndexChatAgent(IChatAgent):
         self._config = config
 
     def process_query(self, query: str, context_messages=None) -> str:
+        overall_start = time.perf_counter()
+        logger.info("QUERY PROCESSOR: iniciando processamento da query")
         warnings.filterwarnings(
             "ignore", category=RuntimeWarning, message=".*coroutine.*was never awaited"
         )
@@ -46,8 +49,23 @@ class LazyLlamaIndexChatAgent(IChatAgent):
             asyncio.set_event_loop(loop)
 
             async def execute():
+                # measure agent creation and run durations
+                t_create_start = time.perf_counter()
                 agent = self._create_agent_in_loop()
+                t_create_end = time.perf_counter()
+                logger.debug(
+                    "QUERY PROCESSOR: agent criado em %.3f ms",
+                    (t_create_end - t_create_start) * 1000,
+                )
+
+                t_run_start = time.perf_counter()
                 result = await agent.run(query)
+                t_run_end = time.perf_counter()
+                logger.info(
+                    "QUERY PROCESSOR: agente executado em %.3f ms",
+                    (t_run_end - t_run_start) * 1000,
+                )
+
                 return result
 
             try:
@@ -77,7 +95,13 @@ class LazyLlamaIndexChatAgent(IChatAgent):
                 return "Desculpe, não consegui processar a resposta adequadamente. Por favor, tente reformular sua pergunta."
 
             text = self._extract_response_text(response)
-            return self._clean_response(text)
+            cleaned = self._clean_response(text)
+            overall_end = time.perf_counter()
+            logger.info(
+                "QUERY PROCESSOR: processamento concluído em %.3f ms",
+                (overall_end - overall_start) * 1000,
+            )
+            return cleaned
 
         except Exception:
             logger.exception("Erro ao processar a query no LazyLlamaIndexChatAgent")
@@ -87,10 +111,21 @@ class LazyLlamaIndexChatAgent(IChatAgent):
         return await asyncio.to_thread(self.process_query, query)
 
     def _create_agent_in_loop(self) -> ReActAgent:
+        t0 = time.perf_counter()
         engine = create_engine(
             self._config["db_uri"], pool_pre_ping=True, pool_recycle=3600, echo=False
         )
+        t1 = time.perf_counter()
+        logger.debug(
+            "QUERY PROCESSOR: engine criado em %.3f ms",
+            (t1 - t0) * 1000,
+        )
         db = SQLDatabase(engine, include_tables=None, sample_rows_in_table_info=2)
+        t2 = time.perf_counter()
+        logger.debug(
+            "QUERY PROCESSOR: SQLDatabase inicializado em %.3f ms",
+            (t2 - t1) * 1000,
+        )
 
         model_name = "gemini-1.5-flash-latest"
 
@@ -102,11 +137,21 @@ class LazyLlamaIndexChatAgent(IChatAgent):
             max_tokens=default_max_tokens,
             top_p=0.95,
         )
+        t_llm = time.perf_counter()
+        logger.debug(
+            "QUERY PROCESSOR: LLM inicializado em %.3f ms",
+            (t_llm - t2) * 1000,
+        )
 
         embed_model = GoogleGenAIEmbedding(
             model_name="models/embedding-001",
             api_key=self._config["google_api_key"],
             embed_batch_size=10,
+        )
+        t_embed = time.perf_counter()
+        logger.debug(
+            "QUERY PROCESSOR: embedding model inicializado em %.3f ms",
+            (t_embed - t_llm) * 1000,
         )
 
         Settings.llm = llm
@@ -462,6 +507,14 @@ class LazyLlamaIndexChatAgent(IChatAgent):
             schema_summary = "\n".join(parts)
         except Exception:
             schema_summary = "(não foi possível ler o esquema do banco)"
+        else:
+            t_schema = time.perf_counter()
+            logger.debug(
+                "QUERY PROCESSOR: leitura de esquema (%d tabelas, resumidas em %d partes) em %.3f ms",
+                len(tables),
+                len(parts),
+                (t_schema - t_embed) * 1000,
+            )
 
         system_prompt = """
 Sempre que o usuário pedir dados, priorize mostrar os resultados em texto/tabela. Só gere arquivos (PDF, Excel, CSV) se o usuário pedir explicitamente para exportar ou baixar. Nunca gere documentos sem solicitação clara. Se for gerar arquivo, responda apenas com o link de download em Markdown e uma frase breve.
@@ -589,7 +642,7 @@ Exemplo: 📥 [Clique aqui para baixar o arquivo](URL)
 class LazyAgentFactory:
     @staticmethod
     def create_agent() -> IChatAgent:
-        db_uri = os.getenv("DATABASE_URL")
+        db_uri = os.getenv("DATABASE_URL_ALTERNATIVE")
         google_api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
 
         if not db_uri or not google_api_key:

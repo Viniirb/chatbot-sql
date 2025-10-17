@@ -217,6 +217,7 @@ export const Sidebar = ({
             {showStats && (
               <div className="mt-2 animate-slide-down">
                 <SessionStats 
+                  stats={null}
                   onGetStats={onGetSessionStats}
                 />
               </div>
