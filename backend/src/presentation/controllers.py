@@ -4,6 +4,19 @@ from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse
+import math
+def clean_floats(obj):
+    """Recursively replace NaN, inf, -inf in dicts/lists with None (JSON safe)."""
+    if isinstance(obj, dict):
+        return {k: clean_floats(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [clean_floats(v) for v in obj]
+    elif isinstance(obj, float):
+        if math.isnan(obj) or math.isinf(obj):
+            return None
+        return obj
+    else:
+        return obj
 from pydantic import BaseModel, Field
 from ..application.interfaces import (
     IProcessQueryUseCase,
@@ -112,7 +125,6 @@ class ChatController:
         # Schedule background task — fire-and-forget
         try:
             import asyncio
-
             asyncio.create_task(background_worker(use_case_request))
         except Exception:
             # If scheduling background task fails, fall back to synchronous execution
@@ -129,26 +141,23 @@ class ChatController:
                     status_code = 500
                 raise HTTPException(status_code=status_code, detail=response.__dict__)
 
-            return JSONResponse(
-                {
-                    "answer": response.data,
-                    "session_id": response.session_id,
-                    "context_used": response.context_used,
-                    "schema_analysis": schema_analysis,
-                }
-            )
+            result_dict = {
+                "answer": response.data,
+                "session_id": response.session_id,
+                "context_used": response.context_used,
+                "schema_analysis": schema_analysis,
+            }
+            return JSONResponse(clean_floats(result_dict))
 
         # Return quick preview to client
-        return JSONResponse(
-            {
-                "answer": f"(preview) {preview_text}",
-                "session_id": use_case_request.session_id,
-                "context_used": None,
-                "schema_analysis": schema_analysis,
-                "background_processing": True,
-            },
-            status_code=202,
-        )
+        preview_dict = {
+            "answer": f"(preview) {preview_text}",
+            "session_id": use_case_request.session_id,
+            "context_used": None,
+            "schema_analysis": schema_analysis,
+            "background_processing": True,
+        }
+        return JSONResponse(clean_floats(preview_dict), status_code=202)
 
 
 class SessionController:
